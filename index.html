@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supermercado Vieira — Acesso Gerente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css?v=5">
+  <link rel="stylesheet" href="assets/css/login.css?v=5">
+  <link rel="icon" type="image/png" href="assets/img/logo-icon.png">
+</head>
+<body class="login-page">
+  <div class="login-bg">
+    <div class="login-grid"></div>
+    <div class="login-orbs">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+    <div class="login-brand-panel">
+      <div class="panel-logo-wrap">
+        <img src="assets/img/logo-vieira.png" alt="Vieira" class="panel-logo">
+      </div>
+      <p class="panel-tagline">Gestão financeira completa para o seu supermercado</p>
+      <ul class="panel-features">
+        <li>
+          <span class="feat-dot"></span>
+          Contas a pagar e receber
+        </li>
+        <li>
+          <span class="feat-dot"></span>
+          Produtos, categorias e estoque
+        </li>
+        <li>
+          <span class="feat-dot"></span>
+          Relatórios e dashboard em tempo real
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="login-container" id="login-container">
+    <div class="login-brand">
+      <div class="brand-icon site-brand-icon">
+        <img src="assets/img/logo-icon.png" alt="Vieira" class="brand-logo-img">
+      </div>
+      <div class="brand-text">
+        <h1>Supermercado Vieira</h1>
+        <span>Painel do Gerente</span>
+      </div>
+    </div>
+
+    <div class="login-card">
+      <div id="login-error" class="alert alert-error" style="display:none"></div>
+
+      <div id="form-admin">
+        <h2>Acesso do Gerente</h2>
+        <p class="login-subtitle">Entre com suas credenciais para gerenciar o sistema</p>
+        <div class="form-group">
+          <label for="admin-username">Usuário</label>
+          <input type="text" id="admin-username" placeholder="Digite seu usuário" autocomplete="username" value="admin">
+        </div>
+        <div class="form-group">
+          <label for="admin-password">Senha</label>
+          <div class="input-eye">
+            <input type="password" id="admin-password" placeholder="Digite sua senha" autocomplete="current-password" value="123">
+            <button type="button" class="eye-btn" onclick="togglePassword('admin-password', this)" aria-label="Mostrar senha">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <button class="btn-login" onclick="loginAdmin()" id="login-btn-admin">
+          <span id="login-btn-admin-text">Entrar no sistema</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <p class="login-hint">Usuário: <b>admin</b> · Senha: <b>123</b></p>
+      </div>
+    </div>
+
+    <div class="login-welcome" id="login-welcome" style="display:none">
+      <div class="welcome-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="welcome-text">
+        <strong id="welcome-name">Bem-vindo!</strong>
+        <span>Redirecionando para o painel...</span>
+      </div>
+      <div class="welcome-spinner"></div>
+    </div>
+
+    <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
+  </div>
+
+  <script src="assets/js/auth.js?v=5"></script>
+  <script src="assets/js/app.js?v=5"></script>
+  <script>
+    initTheme();
+    applySiteImage();
+
+    if (localStorage.getItem('sv_logged') === 'true') {
+      window.location.href = 'pages/dashboard.html';
+    }
+
+    function showError(msg) {
+      const err = document.getElementById('login-error');
+      err.textContent = msg;
+      err.style.display = 'flex';
+      err.style.animation = 'none';
+      err.offsetHeight;
+      err.style.animation = '';
+      setTimeout(() => err.style.display = 'none', 3500);
+    }
+
+    function setLoading(btnId, loading) {
+      const btn = document.getElementById(btnId);
+      const txt = document.getElementById(btnId + '-text');
+      if (!btn) return;
+      btn.disabled = loading;
+      if (loading) {
+        btn.classList.add('loading');
+        if (txt) txt.textContent = 'Entrando...';
+      } else {
+        btn.classList.remove('loading');
+        if (txt) txt.textContent = 'Entrar no sistema';
+      }
+    }
+
+    function doLogin(username, password, btnId) {
+      const user = SV_USERS.find(u => u.username === username && u.password === password);
+      if (user) {
+        setLoading(btnId, true);
+        localStorage.setItem('sv_logged', 'true');
+        localStorage.setItem('sv_user_type', user.type);
+        localStorage.setItem('sv_user_name', user.name);
+        sessionStorage.setItem('sv_show_welcome', 'true');
+
+        const card = document.querySelector('.login-card');
+        const welcome = document.getElementById('login-welcome');
+        const welcomeName = document.getElementById('welcome-name');
+        if (card) {
+          card.style.opacity = '0';
+          card.style.transform = 'translateY(-10px)';
+        }
+        setTimeout(() => {
+          if (card) card.style.display = 'none';
+          if (welcome) welcome.style.display = 'flex';
+          if (welcomeName) welcomeName.textContent = `Bem-vindo, ${user.name}!`;
+        }, 280);
+
+        setTimeout(() => { window.location.href = 'pages/dashboard.html'; }, 1500);
+      } else {
+        showError('Usuário ou senha incorretos.');
+      }
+    }
+
+    function loginAdmin() {
+      const u = document.getElementById('admin-username').value.trim();
+      const p = document.getElementById('admin-password').value;
+      if (!u || !p) { showError('Preencha usuário e senha.'); return; }
+      doLogin(u, p, 'login-btn-admin');
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') loginAdmin();
+    });
+
+    function togglePassword(id, btn) {
+      const inp = document.getElementById(id);
+      const showing = inp.type === 'text';
+      inp.type = showing ? 'password' : 'text';
+      btn.innerHTML = showing
+        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
+        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+    }
+  </script>
+</body>
+</html>

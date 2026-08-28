@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contas a Pagar — Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Nova Conta</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+let editId = null;
+let filterStatus = '', filterCat = '', filterPeriod = '';
+
+function getCats() { return SV.get('categorias').filter(c=>c.tipo==='saida'); }
+
+function render() {
+  let contas = SV.get('contasPagar').map(c => ({...c, status: resolveStatusPagar(c)}));
+  // save resolved statuses back
+  SV.set('contasPagar', contas);
+
+  if (filterStatus) contas = contas.filter(c => c.status === filterStatus);
+  if (filterCat) contas = contas.filter(c => c.categoria === filterCat);
+  if (filterPeriod) contas = contas.filter(c => c.dataVencimento && c.dataVencimento.startsWith(filterPeriod));
+
+  const cats = getCats();
+  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('contas-pagar')}
+    <div class="main-content">
+      ${topbar('Contas a Pagar')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Contas a Pagar</h2>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova Conta
+          </button>
+        </div>
+
+        <div class="filters">
+          <select onchange="filterStatus=this.value;render()">
+            <option value="">Todos os status</option>
+            <option value="pendente">Pendente</option>
+            <option value="paga">Paga</option>
+            <option value="paga após vencimento">Paga após vencimento</option>
+            <option value="vencida">Vencida</option>
+          </select>
+          <select onchange="filterCat=this.value;render()">
+            <option value="">Todas categorias</option>
+            ${catOpts}
+          </select>
+          <input type="month" placeholder="Mês/Ano" value="${filterPeriod}" onchange="filterPeriod=this.value;render()" title="Filtrar por mês de vencimento">
+          <button class="btn btn-secondary btn-sm" onclick="filterStatus='';filterCat='';filterPeriod='';render()">Limpar</button>
+        </div>
+
+        <div class="card">
+          ${contas.length === 0 ? `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><p>Nenhuma conta encontrada</p></div>` : `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Descrição</th><th>Categoria</th><th>Fornecedor</th><th>Vencimento</th><th>Pagamento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                ${contas.map(c=>`<tr>
+                  <td><b>${c.descricao}</b>${c.observacao?`<br><small class="text-muted">${c.observacao}</small>`:''}</td>
+                  <td>${c.categoria||'—'}</td>
+                  <td>${c.fornecedor||'—'}</td>
+                  <td>${fmtDate(c.dataVencimento)}</td>
+                  <td>${fmtDate(c.dataPagamento)||'—'}</td>
+                  <td class="font-mono text-red">${fmtMoney(c.valor)}</td>
+                  <td>${statusBadgePagar(c.status)}</td>
+                  <td>
+                    <div class="td-actions">
+                      ${(c.status==='pendente'||c.status==='vencida')?`<button class="btn btn-sm btn-secondary" title="Marcar como paga" onclick="marcarPaga('${c.id}')">✓ Pagar</button>`:''}
+                      <button class="btn btn-sm btn-secondary btn-icon" title="Editar" onclick="openModal('${c.id}')">✏️</button>
+                      <button class="btn btn-sm btn-danger btn-icon" title="Excluir" onclick="excluir('${c.id}')">🗑</button>
+                    </div>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openModal(id = null) {
+  editId = id;
+  const cats = getCats();
+  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  let c = id ? SV.get('contasPagar').find(x=>x.id===id) : {};
+  if (!c) c = {};
+
+  document.getElementById('modal-title').textContent = id ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group">
+      <label>Descrição *</label>
+      <input id="f-desc" value="${c.descricao||''}" placeholder="Ex: Conta de energia">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Categoria</label>
+        <select id="f-cat"><option value="">Selecione</option>${catOpts}</select>
+      </div>
+      <div class="form-group">
+        <label>Fornecedor/Beneficiário</label>
+        <input id="f-forn" value="${c.fornecedor||''}" placeholder="Ex: Neoenergia">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Valor *</label>
+        <input id="f-valor" type="number" step="0.01" value="${c.valor||''}" placeholder="0,00">
+      </div>
+      <div class="form-group">
+        <label>Data de Vencimento *</label>
+        <input id="f-venc" type="date" value="${c.dataVencimento||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Data de Pagamento</label>
+        <input id="f-pagto" type="date" value="${c.dataPagamento||''}">
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="pendente" ${(c.status||'')==='pendente'?'selected':''}>Pendente</option>
+          <option value="paga" ${c.status==='paga'?'selected':''}>Paga</option>
+          <option value="paga após vencimento" ${c.status==='paga após vencimento'?'selected':''}>Paga após vencimento</option>
+          <option value="vencida" ${c.status==='vencida'?'selected':''}>Vencida</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="f-obs">${c.observacao||''}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Arquivo da Conta/Boleto</label>
+        <input type="text" id="f-arq" value="${c.arquivoConta||''}" placeholder="Nome do arquivo (simulação)">
+      </div>
+      <div class="form-group">
+        <label>Comprovante de Pagamento</label>
+        <input type="text" id="f-comp" value="${c.comprovantePagamento||''}" placeholder="Nome do arquivo (simulação)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+
+  if (c.categoria) document.getElementById('f-cat').value = c.categoria;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar() {
+  const desc = document.getElementById('f-desc').value.trim();
+  const valor = document.getElementById('f-valor').value;
+  const venc = document.getElementById('f-venc').value;
+  if (!desc || !valor || !venc) { alert('Preencha os campos obrigatórios'); return; }
+
+  const pagto = document.getElementById('f-pagto').value;
+  const statusSel = document.getElementById('f-status').value;
+
+  let finalStatus = statusSel;
+  if ((statusSel === 'paga' || statusSel === 'paga após vencimento') && pagto) {
+    finalStatus = pagto > venc ? 'paga após vencimento' : 'paga';
+  }
+
+  const obj = {
+    id: editId || SV.newId(),
+    descricao: desc,
+    categoria: document.getElementById('f-cat').value,
+    fornecedor: document.getElementById('f-forn').value,
+    valor: parseFloat(valor),
+    dataVencimento: venc,
+    dataPagamento: pagto,
+    status: finalStatus,
+    observacao: document.getElementById('f-obs').value,
+    arquivoConta: document.getElementById('f-arq').value,
+    comprovantePagamento: document.getElementById('f-comp').value,
+  };
+
+  let list = SV.get('contasPagar');
+  if (editId) list = list.map(x => x.id === editId ? obj : x);
+  else list.push(obj);
+  SV.set('contasPagar', list);
+  closeModal();
+  render();
+}
+
+function marcarPaga(id) {
+  let list = SV.get('contasPagar');
+  const c = list.find(x=>x.id===id);
+  if (!c) return;
+  const hoje = todayStr();
+  c.dataPagamento = hoje;
+  c.status = hoje > c.dataVencimento ? 'paga após vencimento' : 'paga';
+  SV.set('contasPagar', list);
+  render();
+}
+
+function excluir(id) {
+  showConfirm('Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.', () => {
+    SV.set('contasPagar', SV.get('contasPagar').filter(x=>x.id!==id));
+    showToast('Conta excluída com sucesso', 'success');
+    render();
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editId = null;
+}
+
+document.getElementById('modal-overlay').addEventListener('click', function(e){
+  if (e.target === this) closeModal();
+});
+
+render();
+</script>
+</body>
+</html>

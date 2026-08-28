@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Funcionarios - Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Novo Funcionario</span>
+      <button class="modal-close" onclick="closeModal()">x</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+initSeedData();
+
+let editId = null;
+let filtroStatus = 'todos';
+
+function salarioFuncionario(f) {
+  return Number(f.salario || 0);
+}
+
+function cargaFuncionario(f) {
+  return Number(f.cargaHoraria || f.carga || 44);
+}
+
+function render() {
+  const funcs = SV.get('funcionarios');
+  const mes = currentMonth();
+  const vales = SV.get('vales');
+  const ativos = funcs.filter(f => (f.status || 'ativo') === 'ativo');
+  const inativos = funcs.filter(f => f.status === 'inativo');
+  const folha = ativos.reduce((s,f) => s + salarioFuncionario(f), 0);
+  const mediaSalarial = ativos.length ? folha / ativos.length : 0;
+  const cargaMedia = ativos.length ? ativos.reduce((s,f) => s + cargaFuncionario(f), 0) / ativos.length : 0;
+  const totalValesMes = vales.filter(v => isSameMonth(v.data, mes)).reduce((s,v) => s + Number(v.valor || 0), 0);
+  const lista = funcs.filter(f => filtroStatus === 'todos' || (f.status || 'ativo') === filtroStatus);
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('funcionarios')}
+    <div class="main-content">
+      ${topbar('Funcionarios')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Funcionarios</h2>
+            <p class="page-subtitle">Controle de equipe, salarios e carga horaria</p>
+          </div>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Funcionario
+          </button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span>Ativos</span>
+            <strong class="text-green">${ativos.length}</strong>
+            <small>${inativos.length} inativo(s)</small>
+          </div>
+          <div class="kpi-card">
+            <span>Folha mensal</span>
+            <strong>${fmtMoney(folha)}</strong>
+            <small>somente funcionarios ativos</small>
+          </div>
+          <div class="kpi-card">
+            <span>Media salarial</span>
+            <strong class="text-blue">${fmtMoney(mediaSalarial)}</strong>
+            <small>por funcionario ativo</small>
+          </div>
+          <div class="kpi-card">
+            <span>Carga media</span>
+            <strong class="text-yellow">${cargaMedia.toFixed(1)}h</strong>
+            <small>horas por semana</small>
+          </div>
+          <div class="kpi-card">
+            <span>Vales do mes</span>
+            <strong class="${totalValesMes ? 'text-yellow' : 'text-green'}">${fmtMoney(totalValesMes)}</strong>
+            <small>descontos/adiantamentos</small>
+          </div>
+        </div>
+
+        <div class="filters">
+          <button class="btn ${filtroStatus === 'todos' ? 'btn-primary' : 'btn-secondary'}" onclick="setFiltro('todos')">Todos</button>
+          <button class="btn ${filtroStatus === 'ativo' ? 'btn-primary' : 'btn-secondary'}" onclick="setFiltro('ativo')">Ativos</button>
+          <button class="btn ${filtroStatus === 'inativo' ? 'btn-primary' : 'btn-secondary'}" onclick="setFiltro('inativo')">Inativos</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Equipe cadastrada</span>
+            <span class="text-muted">${lista.length} funcionario(s)</span>
+          </div>
+          ${lista.length === 0 ? `<div class="empty-state"><p>Nenhum funcionario encontrado.</p></div>` : `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Cargo</th>
+                  <th>Salario</th>
+                  <th>Carga</th>
+                  <th>Vales mes</th>
+                  <th>Admissao</th>
+                  <th>Status</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lista.map(f => {
+                  const totalVale = vales.filter(v => v.funcionarioId === f.id && isSameMonth(v.data, mes)).reduce((s,v) => s + Number(v.valor || 0), 0);
+                  const liquido = salarioFuncionario(f) - totalVale;
+                  return `<tr>
+                    <td>
+                      <b>${f.nome}</b>
+                      <div class="text-muted" style="font-size:0.75rem">${f.cpf || 'CPF nao informado'} · ${f.telefone || 'sem telefone'}</div>
+                    </td>
+                    <td>${f.cargo || '-'}</td>
+                    <td>
+                      <div class="font-mono">${fmtMoney(salarioFuncionario(f))}</div>
+                      <div class="text-muted" style="font-size:0.75rem">Liquido aprox. ${fmtMoney(liquido)}</div>
+                    </td>
+                    <td><span class="badge badge-blue">${cargaFuncionario(f)}h/sem</span></td>
+                    <td class="font-mono ${totalVale > 0 ? 'text-yellow' : ''}">${fmtMoney(totalVale)}</td>
+                    <td>${fmtDate(f.admissao)}</td>
+                    <td><span class="badge ${(f.status || 'ativo') === 'ativo' ? 'badge-green' : 'badge-gray'}">${f.status || 'ativo'}</span></td>
+                    <td>
+                      <div class="td-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="openModal('${f.id}')">Editar</button>
+                        <button class="btn btn-sm btn-danger" onclick="excluir('${f.id}')">Excluir</button>
+                      </div>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setFiltro(status) {
+  filtroStatus = status;
+  render();
+}
+
+function openModal(id = null) {
+  editId = id;
+  let f = id ? SV.get('funcionarios').find(x => x.id === id) : {};
+  if (!f) f = {};
+  document.getElementById('modal-title').textContent = id ? 'Editar Funcionario' : 'Novo Funcionario';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-row">
+      <div class="form-group"><label>Nome Completo *</label><input id="f-nome" value="${f.nome || ''}" placeholder="Nome"></div>
+      <div class="form-group"><label>CPF</label><input id="f-cpf" value="${f.cpf || ''}" placeholder="000.000.000-00"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cargo</label><input id="f-cargo" value="${f.cargo || ''}" placeholder="Ex: Caixa"></div>
+      <div class="form-group"><label>Telefone</label><input id="f-tel" value="${f.telefone || ''}" placeholder="(61) 99999-9999"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Salario mensal</label><input id="f-salario" type="number" min="0" step="0.01" value="${f.salario || 0}"></div>
+      <div class="form-group"><label>Carga horaria semanal</label><input id="f-carga" type="number" min="0" step="1" value="${cargaFuncionario(f)}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Data de Admissao</label><input id="f-adm" type="date" value="${f.admissao || ''}"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="f-status">
+          <option value="ativo" ${(f.status || 'ativo') === 'ativo' ? 'selected' : ''}>Ativo</option>
+          <option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>Inativo</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar() {
+  const nome = document.getElementById('f-nome').value.trim();
+  if (!nome) { showToast('Informe o nome do funcionario.', 'warn'); return; }
+
+  const atual = editId ? SV.get('funcionarios').find(x => x.id === editId) || {} : {};
+  const obj = {
+    ...atual,
+    id: editId || SV.newId(),
+    nome,
+    cpf: document.getElementById('f-cpf').value.trim(),
+    cargo: document.getElementById('f-cargo').value.trim(),
+    telefone: document.getElementById('f-tel').value.trim(),
+    salario: Number(document.getElementById('f-salario').value || 0),
+    cargaHoraria: Number(document.getElementById('f-carga').value || 0),
+    admissao: document.getElementById('f-adm').value,
+    status: document.getElementById('f-status').value
+  };
+
+  let list = SV.get('funcionarios');
+  list = editId ? list.map(x => x.id === editId ? obj : x) : [...list, obj];
+  SV.set('funcionarios', list);
+  closeModal();
+  showToast('Funcionario salvo.', 'success');
+  render();
+}
+
+function excluir(id) {
+  showConfirm('Tem certeza que deseja excluir este funcionario?', () => {
+    SV.set('funcionarios', SV.get('funcionarios').filter(x => x.id !== id));
+    showToast('Funcionario excluido.', 'success');
+    render();
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editId = null;
+}
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+render();
+</script>
+</body>
+</html>

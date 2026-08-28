@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Produtos - Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Novo Produto</span>
+      <button class="modal-close" onclick="closeModal()">x</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+initSeedData();
+
+let editId = null;
+let currentFilter = 'todos';
+
+function precisaComprar(produto) {
+  return Boolean(produto.comprar) || Number(produto.estoque || 0) <= Number(produto.minimo || 0);
+}
+
+function statusProduto(produto) {
+  return precisaComprar(produto)
+    ? '<span class="badge badge-red">Precisa comprar</span>'
+    : '<span class="badge badge-green">Nao precisa</span>';
+}
+
+function render() {
+  const produtos = SV.get('produtos');
+  const comprar = produtos.filter(precisaComprar);
+  const ok = produtos.filter(p => !precisaComprar(p));
+  const categorias = [...new Set(produtos.map(p => p.categoria || 'Outros'))].sort();
+  const lista = produtos
+    .filter(p => currentFilter === 'todos' || (currentFilter === 'comprar' ? precisaComprar(p) : !precisaComprar(p)))
+    .sort((a,b) => Number(precisaComprar(b)) - Number(precisaComprar(a)) || a.nome.localeCompare(b.nome));
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('produtos')}
+    <div class="main-content">
+      ${topbar('Produtos')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Lista de Produtos do Supermercado</h2>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo Produto
+          </button>
+        </div>
+
+        <div class="product-summary">
+          <div class="product-summary-item">
+            <strong>${produtos.length}</strong>
+            <span>produtos cadastrados</span>
+          </div>
+          <div class="product-summary-item">
+            <strong class="text-red">${comprar.length}</strong>
+            <span>precisam comprar</span>
+          </div>
+          <div class="product-summary-item">
+            <strong class="text-green">${ok.length}</strong>
+            <span>nao precisam comprar</span>
+          </div>
+          <div class="product-summary-item">
+            <strong class="text-blue">${categorias.length}</strong>
+            <span>categorias</span>
+          </div>
+        </div>
+
+        <div class="filters">
+          <button class="btn ${currentFilter === 'todos' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('todos')">Todos</button>
+          <button class="btn ${currentFilter === 'comprar' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('comprar')">Precisa comprar</button>
+          <button class="btn ${currentFilter === 'ok' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('ok')">Nao precisa</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Controle de estoque e compras</span>
+            <span class="text-muted">${lista.length} item(ns)</span>
+          </div>
+          ${lista.length === 0 ? '<div class="empty-state"><p>Nenhum produto neste filtro.</p></div>' : `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Categoria</th>
+                  <th>Estoque</th>
+                  <th>Minimo</th>
+                  <th>Status</th>
+                  <th>Acoes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lista.map(p => {
+                  const need = precisaComprar(p);
+                  const pct = Math.min(100, Math.round((Number(p.estoque || 0) / Math.max(Number(p.minimo || 1), 1)) * 100));
+                  return `<tr class="${need ? 'product-row-buy' : 'product-row-ok'}">
+                    <td><b>${p.nome}</b></td>
+                    <td><span class="text-muted">${p.categoria || 'Outros'}</span></td>
+                    <td>
+                      <span class="font-mono">${Number(p.estoque || 0)} ${p.unidade || 'un'}</span>
+                      <div class="stock-meter"><div class="stock-meter-fill ${need ? '' : 'ok'}" style="width:${pct}%"></div></div>
+                    </td>
+                    <td class="font-mono">${Number(p.minimo || 0)} ${p.unidade || 'un'}</td>
+                    <td>${statusProduto(p)}</td>
+                    <td>
+                      <div class="td-actions">
+                        <button class="btn btn-sm ${need ? 'btn-secondary' : 'btn-danger'}" onclick="toggleCompra('${p.id}')">${need ? 'Marcar ok' : 'Comprar'}</button>
+                        <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${p.id}')">Editar</button>
+                        <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${p.id}')">Excluir</button>
+                      </div>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  render();
+}
+
+function openModal(id = null) {
+  editId = id;
+  let p = id ? SV.get('produtos').find(x => x.id === id) : {};
+  if (!p) p = {};
+  document.getElementById('modal-title').textContent = id ? 'Editar Produto' : 'Novo Produto';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label>Nome do produto *</label><input id="f-nome" value="${p.nome || ''}" placeholder="Ex: Arroz 5kg"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Categoria</label><input id="f-categoria" value="${p.categoria || ''}" placeholder="Ex: Mercearia"></div>
+      <div class="form-group"><label>Unidade</label><input id="f-unidade" value="${p.unidade || 'un'}" placeholder="un, kg, pct"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Estoque atual *</label><input id="f-estoque" type="number" min="0" step="1" value="${p.estoque ?? 0}"></div>
+      <div class="form-group"><label>Estoque minimo *</label><input id="f-minimo" type="number" min="0" step="1" value="${p.minimo ?? 0}"></div>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px">
+        <input id="f-comprar" type="checkbox" style="width:auto" ${p.comprar ? 'checked' : ''}>
+        Marcar manualmente como precisa comprar
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar() {
+  const nome = document.getElementById('f-nome').value.trim();
+  if (!nome) { showToast('Informe o nome do produto.', 'warn'); return; }
+
+  const obj = {
+    id: editId || SV.newId(),
+    nome,
+    categoria: document.getElementById('f-categoria').value.trim() || 'Outros',
+    estoque: Number(document.getElementById('f-estoque').value || 0),
+    minimo: Number(document.getElementById('f-minimo').value || 0),
+    unidade: document.getElementById('f-unidade').value.trim() || 'un',
+    comprar: document.getElementById('f-comprar').checked
+  };
+
+  let produtos = SV.get('produtos');
+  produtos = editId ? produtos.map(p => p.id === editId ? obj : p) : [...produtos, obj];
+  SV.set('produtos', produtos);
+  closeModal();
+  showToast('Produto salvo.', 'success');
+  render();
+}
+
+function toggleCompra(id) {
+  const produtos = SV.get('produtos').map(p => {
+    if (p.id !== id) return p;
+    if (precisaComprar(p)) {
+      return { ...p, comprar: false, estoque: Math.max(Number(p.estoque || 0), Number(p.minimo || 0) + 1) };
+    }
+    return { ...p, comprar: true };
+  });
+  SV.set('produtos', produtos);
+  render();
+}
+
+function excluir(id) {
+  showConfirm('Tem certeza que deseja excluir este produto?', () => {
+    SV.set('produtos', SV.get('produtos').filter(p => p.id !== id));
+    showToast('Produto excluido.', 'success');
+    render();
+  });
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  editId = null;
+}
+
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+render();
+</script>
+</body>
+</html>

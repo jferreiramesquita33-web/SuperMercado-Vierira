@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initSeedData();
+
+function buildDashboard() {
+  const contas = SV.get('contasPagar').map(c => ({ ...c, status: resolveStatusPagar(c) }));
+  const receber = SV.get('contasReceber').map(c => ({ ...c, status: resolveStatusReceber(c) }));
+  const vales = SV.get('vales');
+  const funcionarios = SV.get('funcionarios');
+  const produtos = SV.get('produtos');
+  const mes = currentMonth();
+
+  const totalPago = contas.filter(c => (c.status === 'paga' || c.status === 'paga apos vencimento' || c.status === 'paga após vencimento') && isSameMonth(c.dataPagamento, mes)).reduce((s,c) => s + Number(c.valor || 0), 0);
+  const totalRecebido = receber.filter(c => (c.status === 'recebida' || c.status === 'recebida em atraso') && isSameMonth(c.dataRecebimento, mes)).reduce((s,c) => s + Number(c.valor || 0), 0);
+  const totalVales = vales.filter(v => isSameMonth(v.data, mes)).reduce((s,v) => s + Number(v.valor || 0), 0);
+  const saldo = totalRecebido - totalPago - totalVales;
+
+  const pagarAbertas = contas.filter(c => c.status === 'pendente' || c.status === 'vencida');
+  const receberAbertas = receber.filter(c => c.status === 'pendente' || c.status === 'atrasada');
+  const vencidas = contas.filter(c => c.status === 'vencida');
+  const produtosComprar = produtos.filter(p => Boolean(p.comprar) || Number(p.estoque || 0) <= Number(p.minimo || 0));
+  const ativos = funcionarios.filter(f => (f.status || 'ativo') === 'ativo');
+
+  const months = [];
+  const entradas = [];
+  const saidas = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+    months.push(d.toLocaleDateString('pt-BR', { month: 'short' }));
+    entradas.push(receber.filter(c => (c.status === 'recebida' || c.status === 'recebida em atraso') && isSameMonth(c.dataRecebimento, m)).reduce((s,c) => s + Number(c.valor || 0), 0));
+    saidas.push(contas.filter(c => (c.status === 'paga' || c.status === 'paga apos vencimento' || c.status === 'paga após vencimento') && isSameMonth(c.dataPagamento, m)).reduce((s,c) => s + Number(c.valor || 0), 0));
+  }
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('dashboard')}
+    <div class="main-content">
+      ${topbar('Dashboard')}
+      <div class="page-content fade-in dashboard-minimal">
+        <div class="section-header">
+          <div>
+            <h2 class="section-title">Visão geral</h2>
+            <p class="page-subtitle">Resumo simples do mês atual</p>
+          </div>
+        </div>
+
+        ${vencidas.length ? `<div class="alert alert-error mb-4">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span><b>${vencidas.length}</b> conta(s) vencida(s) precisam de atencao.</span>
+        </div>` : ''}
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span>Recebido no mês</span>
+            <strong class="text-green">${fmtMoney(totalRecebido)}</strong>
+            <small>${receber.filter(c => c.status === 'recebida' || c.status === 'recebida em atraso').length} recebimentos</small>
+          </div>
+          <div class="kpi-card">
+            <span>Pago no mês</span>
+            <strong class="text-red">${fmtMoney(totalPago)}</strong>
+            <small>${contas.filter(c => c.status === 'paga' || c.status === 'paga apos vencimento' || c.status === 'paga após vencimento').length} pagamentos</small>
+          </div>
+          <div class="kpi-card">
+            <span>Saldo do periodo</span>
+            <strong class="${saldo >= 0 ? 'text-green' : 'text-red'}">${saldo < 0 ? '-' : ''}${fmtMoney(Math.abs(saldo))}</strong>
+            <small>recebidos - pagos - vales</small>
+          </div>
+          <div class="kpi-card">
+            <span>Produtos para comprar</span>
+            <strong class="${produtosComprar.length ? 'text-yellow' : 'text-green'}">${produtosComprar.length}</strong>
+            <small>${produtos.length} produtos cadastrados</small>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Fluxo dos últimos 6 meses</span>
+            </div>
+            <canvas id="chart-flow" height="150"></canvas>
+            <div id="chart-flow-fallback" class="empty-state" style="display:none;padding:32px 12px"><p>Grafico indisponivel.</p></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Pendências</span>
+            </div>
+            <div class="task-list">
+              <a href="contas-pagar.html" class="task-item">
+                <span>Contas a pagar abertas</span>
+                <strong class="${pagarAbertas.length ? 'text-yellow' : 'text-green'}">${pagarAbertas.length}</strong>
+              </a>
+              <a href="contas-receber.html" class="task-item">
+                <span>Contas a receber abertas</span>
+                <strong class="${receberAbertas.length ? 'text-blue' : 'text-green'}">${receberAbertas.length}</strong>
+              </a>
+              <a href="produtos.html" class="task-item">
+                <span>Produtos para comprar</span>
+                <strong class="${produtosComprar.length ? 'text-red' : 'text-green'}">${produtosComprar.length}</strong>
+              </a>
+              <a href="funcionarios.html" class="task-item">
+                <span>Funcionarios ativos</span>
+                <strong>${ativos.length}</strong>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Comprar agora</span>
+              <a href="produtos.html" class="btn btn-secondary btn-sm">Abrir produtos</a>
+            </div>
+            ${produtosComprar.length === 0
+              ? '<div class="empty-state"><p>Nenhum produto abaixo do minimo.</p></div>'
+              : `<div class="compact-list">
+                ${produtosComprar.slice(0,6).map(p => `<div class="compact-row">
+                  <div><strong>${p.nome}</strong><span>${p.categoria || 'Outros'}</span></div>
+                  <span class="badge badge-red">${Number(p.estoque || 0)} / ${Number(p.minimo || 0)} ${p.unidade || 'un'}</span>
+                </div>`).join('')}
+              </div>`}
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Contas vencidas</span>
+              <a href="contas-pagar.html" class="btn btn-secondary btn-sm">Abrir contas</a>
+            </div>
+            ${vencidas.length === 0
+              ? '<div class="empty-state"><p>Nenhuma conta vencida.</p></div>'
+              : `<div class="compact-list">
+                ${vencidas.slice(0,6).map(c => `<div class="compact-row">
+                  <div><strong>${c.descricao}</strong><span>${fmtDate(c.dataVencimento)}</span></div>
+                  <span class="font-mono text-red">${fmtMoney(c.valor)}</span>
+                </div>`).join('')}
+              </div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  if (typeof Chart === 'undefined') {
+    document.getElementById('chart-flow').style.display = 'none';
+    document.getElementById('chart-flow-fallback').style.display = 'block';
+    return;
+  }
+
+  const isLight = document.body.classList.contains('theme-light');
+  const tickColor = isLight ? '#667289' : '#92a0b8';
+  const gridColor = isLight ? 'rgba(20,30,50,0.06)' : 'rgba(139,148,158,0.12)';
+
+  new Chart(document.getElementById('chart-flow'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [
+        {
+          label: 'Entradas',
+          data: entradas,
+          backgroundColor: '#2563eb',
+          borderRadius: 8,
+          maxBarThickness: 36
+        },
+        {
+          label: 'Saídas',
+          data: saidas,
+          backgroundColor: '#c8102e',
+          borderRadius: 8,
+          maxBarThickness: 36
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          labels: {
+            color: tickColor,
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            padding: 16,
+            font: { family: 'Inter', size: 12, weight: '600' }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: tickColor }, grid: { display: false } },
+        y: {
+          ticks: { color: tickColor, callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR') },
+          grid: { color: gridColor }
+        }
+      }
+    }
+  });
+}
+
+buildDashboard();
+initBrightness();
+</script>
+</body>
+</html>

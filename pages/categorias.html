@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Categorias — Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Nova Categoria</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+initSeedData();
+let editId = null;
+
+function render() {
+  const cats = SV.get('categorias');
+  const entradas = cats.filter(c=>c.tipo==='entrada');
+  const saidas = cats.filter(c=>c.tipo==='saida');
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('categorias')}
+    <div class="main-content">
+      ${topbar('Categorias')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Categorias Financeiras</h2>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova Categoria
+          </button>
+        </div>
+
+        <div class="charts-grid">
+          <div class="card">
+            <div class="card-header"><span class="card-title text-green">🟢 Entradas (${entradas.length})</span></div>
+            ${entradas.length===0?'<div class="empty-state"><p>Nenhuma categoria de entrada</p></div>':`
+            <div class="table-wrap"><table>
+              <thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
+              <tbody>${entradas.map(c=>`<tr>
+                <td><b>${c.nome}</b></td>
+                <td><span class="badge badge-green">Entrada</span></td>
+                <td><div class="td-actions">
+                  <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${c.id}')">✏️</button>
+                  <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${c.id}')">🗑</button>
+                </div></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`}
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span class="card-title text-red">🔴 Saídas (${saidas.length})</span></div>
+            ${saidas.length===0?'<div class="empty-state"><p>Nenhuma categoria de saída</p></div>':`
+            <div class="table-wrap"><table>
+              <thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
+              <tbody>${saidas.map(c=>`<tr>
+                <td><b>${c.nome}</b></td>
+                <td><span class="badge badge-red">Saída</span></td>
+                <td><div class="td-actions">
+                  <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${c.id}')">✏️</button>
+                  <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${c.id}')">🗑</button>
+                </div></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openModal(id=null) {
+  editId = id;
+  let c = id ? SV.get('categorias').find(x=>x.id===id) : {};
+  if (!c) c = {};
+  document.getElementById('modal-title').textContent = id ? 'Editar Categoria' : 'Nova Categoria';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label>Nome da Categoria *</label><input id="f-nome" value="${c.nome||''}" placeholder="Ex: Fornecedor"></div>
+    <div class="form-group"><label>Tipo *</label>
+      <select id="f-tipo">
+        <option value="saida" ${(c.tipo||'')==='saida'?'selected':''}>Saída (despesa)</option>
+        <option value="entrada" ${c.tipo==='entrada'?'selected':''}>Entrada (receita)</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar() {
+  const nome = document.getElementById('f-nome').value.trim();
+  if (!nome) { alert('Informe o nome'); return; }
+  const obj = { id: editId||SV.newId(), nome, tipo: document.getElementById('f-tipo').value };
+  let list = SV.get('categorias');
+  if (editId) list = list.map(x=>x.id===editId?obj:x);
+  else list.push(obj);
+  SV.set('categorias', list);
+  closeModal(); render();
+}
+
+function excluir(id) {
+  showConfirm('Tem certeza que deseja excluir esta categoria?', () => {
+    SV.set('categorias', SV.get('categorias').filter(x=>x.id!==id));
+    showToast('Categoria excluída', 'success');
+    render();
+  });
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editId=null; }
+document.getElementById('modal-overlay').addEventListener('click', function(e){if(e.target===this)closeModal();});
+render();
+</script>
+</body>
+</html>

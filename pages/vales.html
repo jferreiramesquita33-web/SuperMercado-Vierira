@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vales — Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Novo Vale</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+let editId=null, filterFunc='', filterPeriod=currentMonth();
+
+function getFuncs(){return SV.get('funcionarios').filter(f=>f.status!=='inativo');}
+
+function render(){
+  const funcs=SV.get('funcionarios');
+  let vales=SV.get('vales');
+  if(filterFunc)vales=vales.filter(v=>v.funcionarioId===filterFunc);
+  if(filterPeriod)vales=vales.filter(v=>v.data&&v.data.startsWith(filterPeriod));
+
+  const mes=filterPeriod||currentMonth();
+  const resumo=funcs.map(f=>{
+    const total=SV.get('vales').filter(v=>v.funcionarioId===f.id&&isSameMonth(v.data,mes)).reduce((s,v)=>s+Number(v.valor||0),0);
+    return {f,total};
+  }).filter(x=>x.total>0);
+
+  document.getElementById('app').innerHTML=`
+  <div class="app-shell">
+    ${renderSidebar('vales')}
+    <div class="main-content">
+      ${topbar('Controle de Vales')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Vales dos Funcionários</h2>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Registrar Vale
+          </button>
+        </div>
+
+        ${resumo.length>0?`
+        <div class="card mb-5">
+          <div class="card-header"><span class="card-title">Resumo por Funcionário — ${filterPeriod||mes}</span></div>
+          <div class="stats-grid" style="margin-bottom:0">
+            ${resumo.map(({f,total})=>`
+            <div class="stat-card purple">
+              <div class="stat-label">${f.nome}</div>
+              <div class="stat-value" style="color:var(--purple);font-size:1.1rem">${fmtMoney(total)}</div>
+              <div class="stat-sub">${f.cargo||''}</div>
+            </div>`).join('')}
+          </div>
+        </div>`:''}
+
+        <div class="filters">
+          <select onchange="filterFunc=this.value;render()">
+            <option value="">Todos os funcionários</option>
+            ${funcs.map(f=>`<option value="${f.id}" ${filterFunc===f.id?'selected':''}>${f.nome}</option>`).join('')}
+          </select>
+          <input type="month" value="${filterPeriod}" onchange="filterPeriod=this.value;render()">
+          <button class="btn btn-secondary btn-sm" onclick="filterFunc='';filterPeriod='';render()">Limpar</button>
+        </div>
+
+        <div class="card">
+          ${vales.length===0?`<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><p>Nenhum vale registrado</p></div>`:`
+          <div class="table-wrap"><table>
+            <thead><tr><th>Funcionário</th><th>Data</th><th>Valor</th><th>Motivo</th><th>Comprovante</th><th>Ações</th></tr></thead>
+            <tbody>
+              ${vales.map(v=>{
+                const f=funcs.find(x=>x.id===v.funcionarioId);
+                return `<tr>
+                  <td><b>${f?f.nome:'—'}</b>${f?`<br><small class="text-muted">${f.cargo||''}</small>`:''}</td>
+                  <td>${fmtDate(v.data)}</td>
+                  <td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td>
+                  <td>${v.motivo||'—'}</td>
+                  <td>${v.comprovante?`<small class="text-muted">📎 ${v.comprovante}</small>`:'—'}</td>
+                  <td><div class="td-actions">
+                    <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${v.id}')">✏️</button>
+                    <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${v.id}')">🗑</button>
+                  </div></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table></div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openModal(id=null){
+  editId=id;
+  const funcs=getFuncs();
+  let v=id?SV.get('vales').find(x=>x.id===id):{};
+  if(!v)v={};
+  document.getElementById('modal-title').textContent=id?'Editar Vale':'Registrar Vale';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label>Funcionário *</label>
+      <select id="f-func">
+        <option value="">Selecione</option>
+        ${funcs.map(f=>`<option value="${f.id}" ${v.funcionarioId===f.id?'selected':''}>${f.nome}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Data *</label><input id="f-data" type="date" value="${v.data||todayStr()}"></div>
+      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${v.valor||''}" placeholder="0,00"></div>
+    </div>
+    <div class="form-group"><label>Motivo/Descrição</label><input id="f-motivo" value="${v.motivo||''}" placeholder="Ex: Adiantamento salarial"></div>
+    <div class="form-group"><label>Comprovante</label><input type="text" id="f-comp" value="${v.comprovante||''}" placeholder="Nome do arquivo (simulação)"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar(){
+  const funcId=document.getElementById('f-func').value;
+  const data=document.getElementById('f-data').value;
+  const valor=document.getElementById('f-valor').value;
+  if(!funcId||!data||!valor){alert('Preencha os campos obrigatórios');return;}
+  const obj={id:editId||SV.newId(),funcionarioId:funcId,data,valor:parseFloat(valor),motivo:document.getElementById('f-motivo').value,comprovante:document.getElementById('f-comp').value};
+  let list=SV.get('vales');
+  if(editId)list=list.map(x=>x.id===editId?obj:x);else list.push(obj);
+  SV.set('vales',list);closeModal();render();
+}
+
+function excluir(id){showConfirm('Tem certeza que deseja excluir este vale?', () => { SV.set('vales',SV.get('vales').filter(x=>x.id!==id)); showToast('Vale excluído com sucesso','success'); render(); });}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');editId=null;}
+document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+render();
+</script>
+</body>
+</html>

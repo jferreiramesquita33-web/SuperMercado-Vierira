@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatórios — Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+  <style>
+    .report-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
+    .tab-btn { padding:8px 16px; border-radius:8px; border:1px solid var(--border); background:var(--bg-2); color:var(--text-2); cursor:pointer; font-family:var(--font-body); font-size:0.85rem; transition:var(--transition); }
+    .tab-btn.active { background:var(--accent-bg); color:var(--accent); border-color:var(--accent); }
+    .tab-btn:hover:not(.active) { background:var(--bg-3); color:var(--text); }
+    .report-total { font-family:var(--font-head); font-size:1.1rem; font-weight:700; padding:14px 18px; background:var(--bg-3); border-radius:8px; margin-top:16px; }
+
+    @media print {
+      .sidebar, .topbar, .report-tabs, .filters, .section-header .btn, .td-actions, .no-print { display:none !important; }
+      .main-content { margin-left:0 !important; }
+      body { background:#fff; color:#000; }
+      .card { border:1px solid #ccc; }
+      thead th { background:#f5f5f5; }
+      .badge { border:1px solid #999; background:transparent; color:#333; }
+      .print-header { display:block !important; }
+    }
+    .print-header { display:none; text-align:center; margin-bottom:24px; }
+    .print-header h2 { font-size:1.4rem; }
+    .print-header p { font-size:0.85rem; color:#555; margin-top:4px; }
+
+    /* Mobile first: tabs mais compactas e com toque confortavel em telas pequenas */
+    @media (max-width: 767.98px) {
+      .report-tabs { gap:6px; }
+      .tab-btn { padding:8px 12px; font-size:0.8rem; flex: 1 1 auto; text-align:center; }
+      .report-total { font-size:1rem; padding:12px 14px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+let activeTab='consolidado', filterPeriod=currentMonth(), filterCat='', filterStatus='', filterFunc='';
+
+const tabs = [
+  {id:'consolidado', label:' Consolidado'},
+  {id:'pagar', label:' Contas a Pagar'},
+  {id:'pagas', label:' Contas Pagas'},
+  {id:'vencidas', label:' Vencidas'},
+  {id:'receber', label:' Contas a Receber'},
+  {id:'recebidas', label:' Recebidas'},
+  {id:'desp-cat', label:' Despesas por Cat.'},
+  {id:'rec-cat', label:' Receitas por Cat.'},
+  {id:'vales-func', label:' Vales por Func.'},
+];
+
+function render(){
+  const funcs=SV.get('funcionarios');
+  const cats=SV.get('categorias');
+  const mes=filterPeriod||currentMonth();
+
+  const contas=SV.get('contasPagar').map(c=>({...c,status:resolveStatusPagar(c)}));
+  const receber=SV.get('contasReceber').map(c=>({...c,status:resolveStatusReceber(c)}));
+  const vales=SV.get('vales');
+
+  let content='';
+
+  if(activeTab==='consolidado'){
+    const periodoContas = filterPeriod ? contas.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod)) : contas;
+    const periodoReceb = filterPeriod ? receber.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod)) : receber;
+    const periodoVales = filterPeriod ? vales.filter(v=>v.data&&v.data.startsWith(filterPeriod)) : vales;
+
+    const totalPago=periodoContas.filter(c=>c.status==='paga'||c.status==='paga após vencimento').reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalAPagar=periodoContas.filter(c=>c.status==='pendente'||c.status==='vencida').reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalRec=periodoReceb.filter(c=>c.status==='recebida'||c.status==='recebida em atraso').reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalAReceber=periodoReceb.filter(c=>c.status==='pendente'||c.status==='atrasada').reduce((s,c)=>s+Number(c.valor||0),0);
+    const totalVales=periodoVales.reduce((s,v)=>s+Number(v.valor||0),0);
+    const saldo=totalRec-totalPago-totalVales;
+
+    content=`
+    <div class="print-header"><h2>Relatório Consolidado — Supermercado Vieira</h2><p>Período: ${filterPeriod||'Todos'} · Gerado em: ${new Date().toLocaleString('pt-BR')}</p></div>
+    <div class="stats-grid">
+      <div class="stat-card green"><div class="stat-label">Total Recebido</div><div class="stat-value text-green">${fmtMoney(totalRec)}</div></div>
+      <div class="stat-card red"><div class="stat-label">Total Pago</div><div class="stat-value text-red">${fmtMoney(totalPago)}</div></div>
+      <div class="stat-card blue"><div class="stat-label">A Receber</div><div class="stat-value" style="color:var(--blue)">${fmtMoney(totalAReceber)}</div></div>
+      <div class="stat-card yellow"><div class="stat-label">A Pagar</div><div class="stat-value text-yellow">${fmtMoney(totalAPagar)}</div></div>
+      <div class="stat-card purple"><div class="stat-label">Vales</div><div class="stat-value" style="color:var(--purple)">${fmtMoney(totalVales)}</div></div>
+      <div class="stat-card ${saldo>=0?'green':'red'}"><div class="stat-label">Saldo</div><div class="stat-value ${saldo>=0?'text-green':'text-red'}">${fmtMoney(saldo)}</div></div>
+    </div>`;
+  }
+
+  else if(activeTab==='pagar'){
+    let rows=contas.filter(c=>c.status==='pendente'||c.status==='vencida');
+    if(filterPeriod)rows=rows.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod));
+    if(filterCat)rows=rows.filter(c=>c.categoria===filterCat);
+    const total=rows.reduce((s,c)=>s+Number(c.valor||0),0);
+    content=buildTable(rows,'pagar',total);
+  }
+  else if(activeTab==='pagas'){
+    let rows=contas.filter(c=>c.status==='paga'||c.status==='paga após vencimento');
+    if(filterPeriod)rows=rows.filter(c=>c.dataPagamento&&c.dataPagamento.startsWith(filterPeriod));
+    if(filterCat)rows=rows.filter(c=>c.categoria===filterCat);
+    const total=rows.reduce((s,c)=>s+Number(c.valor||0),0);
+    content=buildTable(rows,'pagar',total);
+  }
+  else if(activeTab==='vencidas'){
+    let rows=contas.filter(c=>c.status==='vencida');
+    if(filterCat)rows=rows.filter(c=>c.categoria===filterCat);
+    const total=rows.reduce((s,c)=>s+Number(c.valor||0),0);
+    content=buildTable(rows,'pagar',total);
+  }
+  else if(activeTab==='receber'){
+    let rows=receber.filter(c=>c.status==='pendente'||c.status==='atrasada');
+    if(filterPeriod)rows=rows.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod));
+    if(filterCat)rows=rows.filter(c=>c.categoria===filterCat);
+    const total=rows.reduce((s,c)=>s+Number(c.valor||0),0);
+    content=buildTable(rows,'receber',total);
+  }
+  else if(activeTab==='recebidas'){
+    let rows=receber.filter(c=>c.status==='recebida'||c.status==='recebida em atraso');
+    if(filterPeriod)rows=rows.filter(c=>c.dataRecebimento&&c.dataRecebimento.startsWith(filterPeriod));
+    if(filterCat)rows=rows.filter(c=>c.categoria===filterCat);
+    const total=rows.reduce((s,c)=>s+Number(c.valor||0),0);
+    content=buildTable(rows,'receber',total);
+  }
+  else if(activeTab==='desp-cat'){
+    let rows=contas.filter(c=>c.status==='paga'||c.status==='paga após vencimento');
+    if(filterPeriod)rows=rows.filter(c=>c.dataPagamento&&c.dataPagamento.startsWith(filterPeriod));
+    const catMap={};
+    rows.forEach(c=>{const k=c.categoria||'Sem categoria';catMap[k]=(catMap[k]||0)+Number(c.valor||0);});
+    const total=Object.values(catMap).reduce((s,v)=>s+v,0);
+    content=`<div class="table-wrap"><table>
+      <thead><tr><th>Categoria</th><th>Total</th><th>%</th></tr></thead>
+      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="font-mono text-red">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="report-total">Total: <span class="text-red">${fmtMoney(total)}</span></div>`;
+  }
+  else if(activeTab==='rec-cat'){
+    let rows=receber.filter(c=>c.status==='recebida'||c.status==='recebida em atraso');
+    if(filterPeriod)rows=rows.filter(c=>c.dataRecebimento&&c.dataRecebimento.startsWith(filterPeriod));
+    const catMap={};
+    rows.forEach(c=>{const k=c.categoria||'Sem categoria';catMap[k]=(catMap[k]||0)+Number(c.valor||0);});
+    const total=Object.values(catMap).reduce((s,v)=>s+v,0);
+    content=`<div class="table-wrap"><table>
+      <thead><tr><th>Categoria</th><th>Total</th><th>%</th></tr></thead>
+      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="font-mono text-green">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="report-total">Total: <span class="text-green">${fmtMoney(total)}</span></div>`;
+  }
+  else if(activeTab==='vales-func'){
+    let rows=vales;
+    if(filterPeriod)rows=rows.filter(v=>v.data&&v.data.startsWith(filterPeriod));
+    if(filterFunc)rows=rows.filter(v=>v.funcionarioId===filterFunc);
+    const funcMap={};
+    rows.forEach(v=>{const f=funcs.find(x=>x.id===v.funcionarioId);const k=f?f.nome:'Desconhecido';funcMap[k]=(funcMap[k]||0)+Number(v.valor||0);});
+    const total=rows.reduce((s,v)=>s+Number(v.valor||0),0);
+    content=`
+    <div class="table-wrap"><table>
+      <thead><tr><th>Funcionário</th><th>Data</th><th>Valor</th><th>Motivo</th></tr></thead>
+      <tbody>${rows.map(v=>{const f=funcs.find(x=>x.id===v.funcionarioId);return `<tr><td>${f?f.nome:'—'}</td><td>${fmtDate(v.data)}</td><td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td><td>${v.motivo||'—'}</td></tr>`;}).join('')}</tbody>
+    </table></div>
+    <div class="report-total">Total de vales: <span style="color:var(--purple)">${fmtMoney(total)}</span></div>`;
+  }
+
+  const catSaidaOpts=SV.get('categorias').filter(c=>c.tipo==='saida').map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  const catEntradaOpts=SV.get('categorias').filter(c=>c.tipo==='entrada').map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+
+  document.getElementById('app').innerHTML=`
+  <div class="app-shell">
+    ${renderSidebar('relatorios')}
+    <div class="main-content">
+      ${topbar('Relatórios')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Relatórios</h2>
+          <button class="btn btn-primary no-print" onclick="gerarPDF()">
+            📄 Gerar PDF / Imprimir
+          </button>
+        </div>
+
+        <div class="report-tabs no-print">
+          ${tabs.map(t=>`<button class="tab-btn ${activeTab===t.id?'active':''}" onclick="activeTab='${t.id}';render()">${t.label}</button>`).join('')}
+        </div>
+
+        <div class="filters no-print">
+          <input type="month" value="${filterPeriod}" onchange="filterPeriod=this.value;render()" title="Período">
+          ${['pagar','pagas','vencidas','desp-cat'].includes(activeTab)?`<select onchange="filterCat=this.value;render()"><option value="">Todas categorias (saída)</option>${catSaidaOpts}</select>`:''}
+          ${['receber','recebidas','rec-cat'].includes(activeTab)?`<select onchange="filterCat=this.value;render()"><option value="">Todas categorias (entrada)</option>${catEntradaOpts}</select>`:''}
+          ${activeTab==='vales-func'?`<select onchange="filterFunc=this.value;render()"><option value="">Todos funcionários</option>${SV.get('funcionarios').map(f=>`<option value="${f.id}">${f.nome}</option>`).join('')}</select>`:''}
+          <button class="btn btn-secondary btn-sm" onclick="filterPeriod='';filterCat='';filterStatus='';filterFunc='';render()">Limpar</button>
+        </div>
+
+        <div class="card" id="report-content">${content}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildTable(rows, tipo, total){
+  if(rows.length===0) return '<div class="empty-state"><p>Nenhum registro encontrado</p></div>';
+  if(tipo==='pagar') return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Descrição</th><th>Categoria</th><th>Vencimento</th><th>Pagamento</th><th>Valor</th><th>Status</th></tr></thead>
+      <tbody>${rows.map(c=>`<tr><td>${c.descricao}</td><td>${c.categoria||'—'}</td><td>${fmtDate(c.dataVencimento)}</td><td>${fmtDate(c.dataPagamento)||'—'}</td><td class="font-mono text-red">${fmtMoney(c.valor)}</td><td>${statusBadgePagar(c.status)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="report-total">Total: <span class="text-red">${fmtMoney(total)}</span> · ${rows.length} registro(s)</div>`;
+  return `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Descrição</th><th>Categoria</th><th>Previsto</th><th>Recebido</th><th>Valor</th><th>Status</th></tr></thead>
+      <tbody>${rows.map(c=>`<tr><td>${c.descricao}</td><td>${c.categoria||'—'}</td><td>${fmtDate(c.dataVencimento)}</td><td>${fmtDate(c.dataRecebimento)||'—'}</td><td class="font-mono text-green">${fmtMoney(c.valor)}</td><td>${statusBadgeReceber(c.status)}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="report-total">Total: <span class="text-green">${fmtMoney(total)}</span> · ${rows.length} registro(s)</div>`;
+}
+
+function gerarPDF(){
+  window.print();
+}
+
+render();
+</script>
+</body>
+</html>

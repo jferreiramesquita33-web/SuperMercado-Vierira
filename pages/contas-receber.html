@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contas a Receber — Supermercado Vieira</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
+</head>
+<body>
+<div id="app"></div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Nova Conta</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+<script src="../assets/js/auth.js?v=5"></script>
+<script src="../assets/js/storage.js?v=4"></script>
+<script src="../assets/js/app.js?v=5"></script>
+<script>
+checkAuth();
+initBrightness();
+let editId = null;
+let filterStatus = '', filterCat = '', filterPeriod = '';
+
+function getCats() { return SV.get('categorias').filter(c=>c.tipo==='entrada'); }
+
+function render() {
+  let contas = SV.get('contasReceber').map(c => ({...c, status: resolveStatusReceber(c)}));
+  SV.set('contasReceber', contas);
+
+  if (filterStatus) contas = contas.filter(c=>c.status===filterStatus);
+  if (filterCat) contas = contas.filter(c=>c.categoria===filterCat);
+  if (filterPeriod) contas = contas.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod));
+
+  const cats = getCats();
+  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+
+  document.getElementById('app').innerHTML = `
+  <div class="app-shell">
+    ${renderSidebar('contas-receber')}
+    <div class="main-content">
+      ${topbar('Contas a Receber')}
+      <div class="page-content fade-in">
+        <div class="section-header">
+          <h2 class="section-title">Contas a Receber</h2>
+          <button class="btn btn-primary" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nova Conta
+          </button>
+        </div>
+
+        <div class="filters">
+          <select onchange="filterStatus=this.value;render()">
+            <option value="">Todos os status</option>
+            <option value="pendente">Pendente</option>
+            <option value="recebida">Recebida</option>
+            <option value="recebida em atraso">Recebida em atraso</option>
+            <option value="atrasada">Atrasada</option>
+          </select>
+          <select onchange="filterCat=this.value;render()">
+            <option value="">Todas categorias</option>
+            ${catOpts}
+          </select>
+          <input type="month" value="${filterPeriod}" onchange="filterPeriod=this.value;render()" title="Filtrar por mês de vencimento">
+          <button class="btn btn-secondary btn-sm" onclick="filterStatus='';filterCat='';filterPeriod='';render()">Limpar</button>
+        </div>
+
+        <div class="card">
+          ${contas.length === 0 ? `<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><p>Nenhuma conta encontrada</p></div>` : `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Descrição</th><th>Categoria</th><th>Origem/Cliente</th><th>Vencimento</th><th>Recebimento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+              <tbody>
+                ${contas.map(c=>`<tr>
+                  <td><b>${c.descricao}</b>${c.observacao?`<br><small class="text-muted">${c.observacao}</small>`:''}</td>
+                  <td>${c.categoria||'—'}</td>
+                  <td>${c.origem||'—'}</td>
+                  <td>${fmtDate(c.dataVencimento)}</td>
+                  <td>${fmtDate(c.dataRecebimento)||'—'}</td>
+                  <td class="font-mono text-green">${fmtMoney(c.valor)}</td>
+                  <td>${statusBadgeReceber(c.status)}</td>
+                  <td>
+                    <div class="td-actions">
+                      ${(c.status==='pendente'||c.status==='atrasada')?`<button class="btn btn-sm btn-secondary" onclick="marcarRecebida('${c.id}')">✓ Receber</button>`:''}
+                      <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${c.id}')">✏️</button>
+                      <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${c.id}')">🗑</button>
+                    </div>
+                  </td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openModal(id = null) {
+  editId = id;
+  const cats = getCats();
+  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  let c = id ? SV.get('contasReceber').find(x=>x.id===id) : {};
+  if (!c) c = {};
+
+  document.getElementById('modal-title').textContent = id ? 'Editar Conta a Receber' : 'Nova Conta a Receber';
+  document.getElementById('modal-body').innerHTML = `
+    <div class="form-group"><label>Descrição *</label><input id="f-desc" value="${c.descricao||''}" placeholder="Ex: Venda a prazo"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Categoria</label><select id="f-cat"><option value="">Selecione</option>${catOpts}</select></div>
+      <div class="form-group"><label>Origem/Cliente</label><input id="f-orig" value="${c.origem||''}" placeholder="Ex: Cliente João"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${c.valor||''}" placeholder="0,00"></div>
+      <div class="form-group"><label>Data Prevista *</label><input id="f-venc" type="date" value="${c.dataVencimento||''}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Data de Recebimento</label><input id="f-receb" type="date" value="${c.dataRecebimento||''}"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="f-status">
+          <option value="pendente" ${(c.status||'')==='pendente'?'selected':''}>Pendente</option>
+          <option value="recebida" ${c.status==='recebida'?'selected':''}>Recebida</option>
+          <option value="recebida em atraso" ${c.status==='recebida em atraso'?'selected':''}>Recebida em atraso</option>
+          <option value="atrasada" ${c.status==='atrasada'?'selected':''}>Atrasada</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Observação</label><textarea id="f-obs">${c.observacao||''}</textarea></div>
+    <div class="form-group"><label>Comprovante de Recebimento</label><input type="text" id="f-comp" value="${c.comprovanteRecebimento||''}" placeholder="Nome do arquivo (simulação)"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+    </div>`;
+
+  if (c.categoria) document.getElementById('f-cat').value = c.categoria;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvar() {
+  const desc = document.getElementById('f-desc').value.trim();
+  const valor = document.getElementById('f-valor').value;
+  const venc = document.getElementById('f-venc').value;
+  if (!desc || !valor || !venc) { alert('Preencha os campos obrigatórios'); return; }
+
+  const receb = document.getElementById('f-receb').value;
+  let finalStatus = document.getElementById('f-status').value;
+  if ((finalStatus==='recebida'||finalStatus==='recebida em atraso') && receb) {
+    finalStatus = receb > venc ? 'recebida em atraso' : 'recebida';
+  }
+
+  const obj = {
+    id: editId || SV.newId(),
+    descricao: desc,
+    categoria: document.getElementById('f-cat').value,
+    origem: document.getElementById('f-orig').value,
+    valor: parseFloat(valor),
+    dataVencimento: venc,
+    dataRecebimento: receb,
+    status: finalStatus,
+    observacao: document.getElementById('f-obs').value,
+    comprovanteRecebimento: document.getElementById('f-comp').value,
+  };
+
+  let list = SV.get('contasReceber');
+  if (editId) list = list.map(x=>x.id===editId?obj:x);
+  else list.push(obj);
+  SV.set('contasReceber', list);
+  closeModal(); render();
+}
+
+function marcarRecebida(id) {
+  let list = SV.get('contasReceber');
+  const c = list.find(x=>x.id===id);
+  if (!c) return;
+  const hoje = todayStr();
+  c.dataRecebimento = hoje;
+  c.status = hoje > c.dataVencimento ? 'recebida em atraso' : 'recebida';
+  SV.set('contasReceber', list);
+  render();
+}
+
+function excluir(id) {
+  showConfirm('Tem certeza que deseja excluir esta conta a receber? Esta ação não pode ser desfeita.', () => {
+    SV.set('contasReceber', SV.get('contasReceber').filter(x=>x.id!==id));
+    showToast('Conta excluída com sucesso', 'success');
+    render();
+  });
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editId = null; }
+document.getElementById('modal-overlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+render();
+</script>
+</body>
+</html>
