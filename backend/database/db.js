@@ -1,29 +1,21 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 
-const dbPath = path.join(__dirname, "vieira.db");
+const { createClient } = require("@supabase/supabase-js");
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error("Erro ao conectar ao banco:", err.message);
-  } else {
-    console.log("Banco de dados conectado!");
-  }
-});
+console.log("URL:", process.env.SUPABASE_URL);
+console.log("KEY existe:", !!process.env.SUPABASE_KEY);
+console.log(
+  "KEY começa com:",
+  process.env.SUPABASE_KEY
+    ? process.env.SUPABASE_KEY.substring(0, 15)
+    : "NÃO ENCONTRADA"
+);
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS produtos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL,
-    preco REAL NOT NULL,
-    estoque INTEGER NOT NULL DEFAULT 0
-  )
-`, (err) => {
-  if (err) {
-    console.error("Erro ao criar tabela:", err.message);
-  } else {
-    console.log("Tabela produtos criada!");
-  }
-});
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-module.exports = db;
+console.log("Supabase conectado!");
+
+module.exports = supabase;

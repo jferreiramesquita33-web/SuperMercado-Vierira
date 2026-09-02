@@ -1,229 +1,1086 @@
+```html
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Produtos - Supermercado Vieira</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="../assets/css/style.css?v=6">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
 </head>
+
 <body>
+
 <div id="app"></div>
+
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal" style="max-width:520px">
+
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Novo Produto</span>
-      <button class="modal-close" onclick="closeModal()">x</button>
+
+      <button class="modal-close" onclick="closeModal()">×</button>
     </div>
+
     <div id="modal-body"></div>
+
   </div>
 </div>
 
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=5"></script>
+
+<script src="../assets/js/auth.js?v=6"></script>
+<script src="../assets/js/storage.js?v=6"></script>
+<script src="../assets/js/app.js?v=6"></script>
+
 <script>
+
 checkAuth();
 initBrightness();
-initSeedData();
 
 let editId = null;
-let currentFilter = 'todos';
+let currentFilter = "todos";
+let produtosCache = [];
+
+
+// =====================================================
+// API
+// =====================================================
+
+async function carregarProdutosAPI() {
+
+  const resposta = await fetch("/api/produtos");
+
+  const resultado = await resposta.json();
+
+  if (!resposta.ok) {
+    throw new Error(
+      resultado.detalhes ||
+      resultado.erro ||
+      "Erro ao buscar produtos"
+    );
+  }
+
+  return resultado;
+}
+
+
+async function criarProduto(dados) {
+
+  const resposta = await fetch("/api/produtos", {
+    method: "POST",
+
+    headers: {
+      "Content-Type": "application/json"
+    },
+
+    body: JSON.stringify(dados)
+  });
+
+  const resultado = await resposta.json();
+
+  if (!resposta.ok) {
+    throw new Error(
+      resultado.detalhes ||
+      resultado.erro ||
+      "Erro ao cadastrar produto"
+    );
+  }
+
+  return resultado.produto;
+}
+
+
+async function atualizarProduto(id, dados) {
+
+  const resposta = await fetch(`/api/produtos/${id}`, {
+    method: "PUT",
+
+    headers: {
+      "Content-Type": "application/json"
+    },
+
+    body: JSON.stringify(dados)
+  });
+
+  const resultado = await resposta.json();
+
+  if (!resposta.ok) {
+    throw new Error(
+      resultado.detalhes ||
+      resultado.erro ||
+      "Erro ao editar produto"
+    );
+  }
+
+  return resultado.produto;
+}
+
+
+async function removerProduto(id) {
+
+  const resposta = await fetch(`/api/produtos/${id}`, {
+    method: "DELETE"
+  });
+
+  const resultado = await resposta.json();
+
+  if (!resposta.ok) {
+    throw new Error(
+      resultado.detalhes ||
+      resultado.erro ||
+      "Erro ao excluir produto"
+    );
+  }
+
+  return resultado.produto;
+}
+
+
+// =====================================================
+// REGRAS
+// =====================================================
 
 function precisaComprar(produto) {
-  return Boolean(produto.comprar) || Number(produto.estoque || 0) <= Number(produto.minimo || 0);
+
+  return (
+    Boolean(produto.comprar) ||
+    Number(produto.estoque || 0) <= Number(produto.minimo || 0)
+  );
 }
+
 
 function statusProduto(produto) {
+
   return precisaComprar(produto)
+
     ? '<span class="badge badge-red">Precisa comprar</span>'
-    : '<span class="badge badge-green">Nao precisa</span>';
+
+    : '<span class="badge badge-green">Não precisa</span>';
 }
+
+
+function dinheiro(valor) {
+
+  return Number(valor || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  });
+}
+
+
+// =====================================================
+// CARREGAR PÁGINA
+// =====================================================
+
+async function carregarPaginaProdutos() {
+
+  try {
+
+    produtosCache = await carregarProdutosAPI();
+
+    render();
+
+  } catch (erro) {
+
+    console.error(erro);
+
+    document.getElementById("app").innerHTML = `
+
+      <div class="app-shell">
+
+        ${renderSidebar("produtos")}
+
+        <div class="main-content">
+
+          ${topbar("Produtos")}
+
+          <div class="page-content">
+
+            <div class="card">
+
+              <div class="empty-state">
+
+                <h3>Erro ao carregar produtos</h3>
+
+                <p>${erro.message}</p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    `;
+  }
+}
+
+
+// =====================================================
+// RENDER
+// =====================================================
 
 function render() {
-  const produtos = SV.get('produtos');
+
+  const produtos = [...produtosCache];
+
   const comprar = produtos.filter(precisaComprar);
+
   const ok = produtos.filter(p => !precisaComprar(p));
-  const categorias = [...new Set(produtos.map(p => p.categoria || 'Outros'))].sort();
+
+  const categorias = [
+    ...new Set(
+      produtos.map(
+        p => p.categoria || "Outros"
+      )
+    )
+  ].sort();
+
+
   const lista = produtos
-    .filter(p => currentFilter === 'todos' || (currentFilter === 'comprar' ? precisaComprar(p) : !precisaComprar(p)))
-    .sort((a,b) => Number(precisaComprar(b)) - Number(precisaComprar(a)) || a.nome.localeCompare(b.nome));
 
-  document.getElementById('app').innerHTML = `
-  <div class="app-shell">
-    ${renderSidebar('produtos')}
-    <div class="main-content">
-      ${topbar('Produtos')}
-      <div class="page-content fade-in">
-        <div class="section-header">
-          <h2 class="section-title">Lista de Produtos do Supermercado</h2>
-          <button class="btn btn-primary" onclick="openModal()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Novo Produto
-          </button>
+    .filter(p => {
+
+      if (currentFilter === "comprar") {
+
+        return precisaComprar(p);
+
+      }
+
+      if (currentFilter === "ok") {
+
+        return !precisaComprar(p);
+
+      }
+
+      return true;
+
+    })
+
+    .sort((a, b) => {
+
+      const compraA = Number(precisaComprar(a));
+
+      const compraB = Number(precisaComprar(b));
+
+      return (
+        compraB - compraA ||
+        String(a.nome).localeCompare(String(b.nome))
+      );
+
+    });
+
+
+  document.getElementById("app").innerHTML = `
+
+    <div class="app-shell">
+
+      ${renderSidebar("produtos")}
+
+      <div class="main-content">
+
+        ${topbar("Produtos")}
+
+        <div class="page-content fade-in">
+
+          <div class="section-header">
+
+            <h2 class="section-title">
+              Lista de Produtos do Supermercado
+            </h2>
+
+            <button
+              class="btn btn-primary"
+              onclick="openModal()"
+            >
+
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+
+              </svg>
+
+              Novo Produto
+
+            </button>
+
+          </div>
+
+
+          <div class="product-summary">
+
+            <div class="product-summary-item">
+
+              <strong>${produtos.length}</strong>
+
+              <span>produtos cadastrados</span>
+
+            </div>
+
+
+            <div class="product-summary-item">
+
+              <strong class="text-red">
+                ${comprar.length}
+              </strong>
+
+              <span>precisam comprar</span>
+
+            </div>
+
+
+            <div class="product-summary-item">
+
+              <strong class="text-green">
+                ${ok.length}
+              </strong>
+
+              <span>não precisam comprar</span>
+
+            </div>
+
+
+            <div class="product-summary-item">
+
+              <strong class="text-blue">
+                ${categorias.length}
+              </strong>
+
+              <span>categorias</span>
+
+            </div>
+
+          </div>
+
+
+          <div class="filters">
+
+            <button
+              class="btn ${
+                currentFilter === "todos"
+                  ? "btn-primary"
+                  : "btn-secondary"
+              }"
+              onclick="setFilter('todos')"
+            >
+              Todos
+            </button>
+
+
+            <button
+              class="btn ${
+                currentFilter === "comprar"
+                  ? "btn-primary"
+                  : "btn-secondary"
+              }"
+              onclick="setFilter('comprar')"
+            >
+              Precisa comprar
+            </button>
+
+
+            <button
+              class="btn ${
+                currentFilter === "ok"
+                  ? "btn-primary"
+                  : "btn-secondary"
+              }"
+              onclick="setFilter('ok')"
+            >
+              Não precisa
+            </button>
+
+          </div>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <span class="card-title">
+                Controle de estoque e compras
+              </span>
+
+              <span class="text-muted">
+                ${lista.length} item(ns)
+              </span>
+
+            </div>
+
+
+            ${
+              lista.length === 0
+
+              ?
+
+              `
+                <div class="empty-state">
+
+                  <p>
+                    Nenhum produto neste filtro.
+                  </p>
+
+                </div>
+              `
+
+              :
+
+              `
+
+              <div class="table-wrap">
+
+                <table>
+
+                  <thead>
+
+                    <tr>
+
+                      <th>Produto</th>
+                      <th>Categoria</th>
+                      <th>Preço</th>
+                      <th>Estoque</th>
+                      <th>Mínimo</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+
+                    </tr>
+
+                  </thead>
+
+
+                  <tbody>
+
+                    ${lista.map(p => {
+
+                      const need = precisaComprar(p);
+
+                      const estoque = Number(
+                        p.estoque || 0
+                      );
+
+                      const minimo = Number(
+                        p.minimo || 0
+                      );
+
+                      const pct = minimo > 0
+
+                        ? Math.min(
+                            100,
+                            Math.round(
+                              (estoque / minimo) * 100
+                            )
+                          )
+
+                        : 100;
+
+
+                      return `
+
+                        <tr class="${
+                          need
+                            ? "product-row-buy"
+                            : "product-row-ok"
+                        }">
+
+                          <td>
+                            <b>${p.nome}</b>
+                          </td>
+
+
+                          <td>
+                            <span class="text-muted">
+                              ${p.categoria || "Outros"}
+                            </span>
+                          </td>
+
+
+                          <td>
+                            ${dinheiro(p.preco)}
+                          </td>
+
+
+                          <td>
+
+                            <span class="font-mono">
+
+                              ${estoque}
+                              ${p.unidade || "un"}
+
+                            </span>
+
+
+                            <div class="stock-meter">
+
+                              <div
+                                class="stock-meter-fill ${
+                                  need ? "" : "ok"
+                                }"
+                                style="width:${pct}%"
+                              ></div>
+
+                            </div>
+
+                          </td>
+
+
+                          <td class="font-mono">
+
+                            ${minimo}
+                            ${p.unidade || "un"}
+
+                          </td>
+
+
+                          <td>
+                            ${statusProduto(p)}
+                          </td>
+
+
+                          <td>
+
+                            <div class="td-actions">
+
+                              <button
+                                class="btn btn-sm ${
+                                  need
+                                    ? "btn-secondary"
+                                    : "btn-danger"
+                                }"
+                                onclick="toggleCompra(${p.id})"
+                              >
+                                ${
+                                  need
+                                    ? "Marcar ok"
+                                    : "Comprar"
+                                }
+                              </button>
+
+
+                              <button
+                                class="btn btn-sm btn-secondary btn-icon"
+                                onclick="openModal(${p.id})"
+                              >
+                                Editar
+                              </button>
+
+
+                              <button
+                                class="btn btn-sm btn-danger btn-icon"
+                                onclick="excluir(${p.id})"
+                              >
+                                Excluir
+                              </button>
+
+                            </div>
+
+                          </td>
+
+                        </tr>
+
+                      `;
+
+                    }).join("")}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+              `
+            }
+
+          </div>
+
         </div>
 
-        <div class="product-summary">
-          <div class="product-summary-item">
-            <strong>${produtos.length}</strong>
-            <span>produtos cadastrados</span>
-          </div>
-          <div class="product-summary-item">
-            <strong class="text-red">${comprar.length}</strong>
-            <span>precisam comprar</span>
-          </div>
-          <div class="product-summary-item">
-            <strong class="text-green">${ok.length}</strong>
-            <span>nao precisam comprar</span>
-          </div>
-          <div class="product-summary-item">
-            <strong class="text-blue">${categorias.length}</strong>
-            <span>categorias</span>
-          </div>
-        </div>
-
-        <div class="filters">
-          <button class="btn ${currentFilter === 'todos' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('todos')">Todos</button>
-          <button class="btn ${currentFilter === 'comprar' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('comprar')">Precisa comprar</button>
-          <button class="btn ${currentFilter === 'ok' ? 'btn-primary' : 'btn-secondary'}" onclick="setFilter('ok')">Nao precisa</button>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <span class="card-title">Controle de estoque e compras</span>
-            <span class="text-muted">${lista.length} item(ns)</span>
-          </div>
-          ${lista.length === 0 ? '<div class="empty-state"><p>Nenhum produto neste filtro.</p></div>' : `
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Produto</th>
-                  <th>Categoria</th>
-                  <th>Estoque</th>
-                  <th>Minimo</th>
-                  <th>Status</th>
-                  <th>Acoes</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${lista.map(p => {
-                  const need = precisaComprar(p);
-                  const pct = Math.min(100, Math.round((Number(p.estoque || 0) / Math.max(Number(p.minimo || 1), 1)) * 100));
-                  return `<tr class="${need ? 'product-row-buy' : 'product-row-ok'}">
-                    <td><b>${p.nome}</b></td>
-                    <td><span class="text-muted">${p.categoria || 'Outros'}</span></td>
-                    <td>
-                      <span class="font-mono">${Number(p.estoque || 0)} ${p.unidade || 'un'}</span>
-                      <div class="stock-meter"><div class="stock-meter-fill ${need ? '' : 'ok'}" style="width:${pct}%"></div></div>
-                    </td>
-                    <td class="font-mono">${Number(p.minimo || 0)} ${p.unidade || 'un'}</td>
-                    <td>${statusProduto(p)}</td>
-                    <td>
-                      <div class="td-actions">
-                        <button class="btn btn-sm ${need ? 'btn-secondary' : 'btn-danger'}" onclick="toggleCompra('${p.id}')">${need ? 'Marcar ok' : 'Comprar'}</button>
-                        <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${p.id}')">Editar</button>
-                        <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${p.id}')">Excluir</button>
-                      </div>
-                    </td>
-                  </tr>`;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>`}
-        </div>
       </div>
+
     </div>
-  </div>`;
+
+  `;
+
 }
+
+
+// =====================================================
+// FILTRO
+// =====================================================
 
 function setFilter(filter) {
+
   currentFilter = filter;
+
   render();
 }
+
+
+// =====================================================
+// MODAL
+// =====================================================
 
 function openModal(id = null) {
+
   editId = id;
-  let p = id ? SV.get('produtos').find(x => x.id === id) : {};
-  if (!p) p = {};
-  document.getElementById('modal-title').textContent = id ? 'Editar Produto' : 'Novo Produto';
-  document.getElementById('modal-body').innerHTML = `
-    <div class="form-group"><label>Nome do produto *</label><input id="f-nome" value="${p.nome || ''}" placeholder="Ex: Arroz 5kg"></div>
-    <div class="form-row">
-      <div class="form-group"><label>Categoria</label><input id="f-categoria" value="${p.categoria || ''}" placeholder="Ex: Mercearia"></div>
-      <div class="form-group"><label>Unidade</label><input id="f-unidade" value="${p.unidade || 'un'}" placeholder="un, kg, pct"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Estoque atual *</label><input id="f-estoque" type="number" min="0" step="1" value="${p.estoque ?? 0}"></div>
-      <div class="form-group"><label>Estoque minimo *</label><input id="f-minimo" type="number" min="0" step="1" value="${p.minimo ?? 0}"></div>
-    </div>
+
+  const produto = id
+
+    ? produtosCache.find(
+        p => Number(p.id) === Number(id)
+      )
+
+    : null;
+
+
+  const p = produto || {};
+
+
+  document.getElementById(
+    "modal-title"
+  ).textContent = id
+    ? "Editar Produto"
+    : "Novo Produto";
+
+
+  document.getElementById(
+    "modal-body"
+  ).innerHTML = `
+
     <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px">
-        <input id="f-comprar" type="checkbox" style="width:auto" ${p.comprar ? 'checked' : ''}>
-        Marcar manualmente como precisa comprar
-      </label>
+
+      <label>Nome do produto *</label>
+
+      <input
+        id="f-nome"
+        value="${p.nome || ""}"
+        placeholder="Ex: Arroz 5kg"
+      >
+
     </div>
+
+
+    <div class="form-group">
+
+      <label>Preço *</label>
+
+      <input
+        id="f-preco"
+        type="number"
+        min="0"
+        step="0.01"
+        value="${p.preco ?? 0}"
+        placeholder="Ex: 25.90"
+      >
+
+    </div>
+
+
+    <div class="form-row">
+
+      <div class="form-group">
+
+        <label>Categoria</label>
+
+        <input
+          id="f-categoria"
+          value="${p.categoria || ""}"
+          placeholder="Ex: Mercearia"
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>Unidade</label>
+
+        <input
+          id="f-unidade"
+          value="${p.unidade || "un"}"
+          placeholder="un, kg, pct"
+        >
+
+      </div>
+
+    </div>
+
+
+    <div class="form-row">
+
+      <div class="form-group">
+
+        <label>Estoque atual *</label>
+
+        <input
+          id="f-estoque"
+          type="number"
+          min="0"
+          step="1"
+          value="${p.estoque ?? 0}"
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>Estoque mínimo *</label>
+
+        <input
+          id="f-minimo"
+          type="number"
+          min="0"
+          step="1"
+          value="${p.minimo ?? 0}"
+        >
+
+      </div>
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label
+        style="
+          display:flex;
+          align-items:center;
+          gap:8px
+        "
+      >
+
+        <input
+          id="f-comprar"
+          type="checkbox"
+          style="width:auto"
+          ${p.comprar ? "checked" : ""}
+        >
+
+        Marcar manualmente como precisa comprar
+
+      </label>
+
+    </div>
+
+
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvar()">Salvar</button>
-    </div>`;
-  document.getElementById('modal-overlay').classList.add('open');
+
+      <button
+        class="btn btn-secondary"
+        onclick="closeModal()"
+      >
+        Cancelar
+      </button>
+
+
+      <button
+        class="btn btn-primary"
+        onclick="salvar()"
+      >
+        Salvar
+      </button>
+
+    </div>
+
+  `;
+
+
+  document
+    .getElementById("modal-overlay")
+    .classList.add("open");
 }
 
-function salvar() {
-  const nome = document.getElementById('f-nome').value.trim();
-  if (!nome) { showToast('Informe o nome do produto.', 'warn'); return; }
 
-  const obj = {
-    id: editId || SV.newId(),
+// =====================================================
+// SALVAR
+// =====================================================
+
+async function salvar() {
+
+  const nome = document
+    .getElementById("f-nome")
+    .value
+    .trim();
+
+
+  const preco = Number(
+    document.getElementById("f-preco").value || 0
+  );
+
+
+  const categoria = document
+    .getElementById("f-categoria")
+    .value
+    .trim() || "Outros";
+
+
+  const unidade = document
+    .getElementById("f-unidade")
+    .value
+    .trim() || "un";
+
+
+  const estoque = Number(
+    document.getElementById("f-estoque").value || 0
+  );
+
+
+  const minimo = Number(
+    document.getElementById("f-minimo").value || 0
+  );
+
+
+  const comprar = document
+    .getElementById("f-comprar")
+    .checked;
+
+
+  if (!nome) {
+
+    showToast(
+      "Informe o nome do produto.",
+      "warn"
+    );
+
+    return;
+
+  }
+
+
+  if (preco < 0 || estoque < 0 || minimo < 0) {
+
+    showToast(
+      "Os valores não podem ser negativos.",
+      "warn"
+    );
+
+    return;
+
+  }
+
+
+  const dados = {
     nome,
-    categoria: document.getElementById('f-categoria').value.trim() || 'Outros',
-    estoque: Number(document.getElementById('f-estoque').value || 0),
-    minimo: Number(document.getElementById('f-minimo').value || 0),
-    unidade: document.getElementById('f-unidade').value.trim() || 'un',
-    comprar: document.getElementById('f-comprar').checked
+    preco,
+    estoque,
+    categoria,
+    minimo,
+    unidade,
+    comprar
   };
 
-  let produtos = SV.get('produtos');
-  produtos = editId ? produtos.map(p => p.id === editId ? obj : p) : [...produtos, obj];
-  SV.set('produtos', produtos);
-  closeModal();
-  showToast('Produto salvo.', 'success');
-  render();
+
+  try {
+
+    if (editId) {
+
+      await atualizarProduto(
+        editId,
+        dados
+      );
+
+      showToast(
+        "Produto atualizado com sucesso!",
+        "success"
+      );
+
+    } else {
+
+      await criarProduto(dados);
+
+      showToast(
+        "Produto cadastrado com sucesso!",
+        "success"
+      );
+
+    }
+
+
+    closeModal();
+
+    await carregarPaginaProdutos();
+
+  } catch (erro) {
+
+    console.error(erro);
+
+    showToast(
+      erro.message ||
+      "Não foi possível salvar o produto.",
+      "warn"
+    );
+
+  }
+
 }
 
-function toggleCompra(id) {
-  const produtos = SV.get('produtos').map(p => {
-    if (p.id !== id) return p;
-    if (precisaComprar(p)) {
-      return { ...p, comprar: false, estoque: Math.max(Number(p.estoque || 0), Number(p.minimo || 0) + 1) };
-    }
-    return { ...p, comprar: true };
-  });
-  SV.set('produtos', produtos);
-  render();
+
+// =====================================================
+// COMPRAR / MARCAR OK
+// =====================================================
+
+async function toggleCompra(id) {
+
+  const produto = produtosCache.find(
+    p => Number(p.id) === Number(id)
+  );
+
+
+  if (!produto) {
+    return;
+  }
+
+
+  let novoEstoque = Number(
+    produto.estoque || 0
+  );
+
+
+  let novoComprar;
+
+
+  if (precisaComprar(produto)) {
+
+    novoComprar = false;
+
+    novoEstoque = Math.max(
+      novoEstoque,
+      Number(produto.minimo || 0) + 1
+    );
+
+  } else {
+
+    novoComprar = true;
+
+  }
+
+
+  try {
+
+    await atualizarProduto(
+      produto.id,
+      {
+        nome: produto.nome,
+        preco: produto.preco,
+        estoque: novoEstoque,
+        categoria: produto.categoria || "Outros",
+        minimo: Number(produto.minimo || 0),
+        unidade: produto.unidade || "un",
+        comprar: novoComprar
+      }
+    );
+
+
+    await carregarPaginaProdutos();
+
+
+  } catch (erro) {
+
+    console.error(erro);
+
+    showToast(
+      erro.message ||
+      "Não foi possível atualizar o produto.",
+      "warn"
+    );
+
+  }
+
 }
+
+
+// =====================================================
+// EXCLUIR
+// =====================================================
 
 function excluir(id) {
-  showConfirm('Tem certeza que deseja excluir este produto?', () => {
-    SV.set('produtos', SV.get('produtos').filter(p => p.id !== id));
-    showToast('Produto excluido.', 'success');
-    render();
-  });
+
+  showConfirm(
+    "Tem certeza que deseja excluir este produto?",
+
+    async () => {
+
+      try {
+
+        await removerProduto(id);
+
+        showToast(
+          "Produto excluído com sucesso!",
+          "success"
+        );
+
+        await carregarPaginaProdutos();
+
+      } catch (erro) {
+
+        console.error(erro);
+
+        showToast(
+          erro.message ||
+          "Não foi possível excluir o produto.",
+          "warn"
+        );
+
+      }
+
+    }
+  );
+
 }
 
+
+// =====================================================
+// FECHAR MODAL
+// =====================================================
+
 function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
+
+  document
+    .getElementById("modal-overlay")
+    .classList.remove("open");
+
   editId = null;
 }
 
-document.getElementById('modal-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
 
-render();
+document
+  .getElementById("modal-overlay")
+  .addEventListener("click", function(e) {
+
+    if (e.target === this) {
+      closeModal();
+    }
+
+  });
+
+
+// =====================================================
+// INÍCIO
+// =====================================================
+
+carregarPaginaProdutos();
+
 </script>
+
 </body>
 </html>
+```
