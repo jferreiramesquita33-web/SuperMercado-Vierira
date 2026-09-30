@@ -1,0 +1,69 @@
+/* Visual effects only; original layout, colors and business logic stay intact. */
+html.sv-motion body { animation: none; }
+html.sv-loading { overflow: hidden; }
+.sv-loading body > :is(#app, .login-container, .login-bg) { visibility: hidden; }
+.sv-loading-screen {
+  position: fixed; inset: 0; z-index: 10000;
+  display: grid; place-items: center;
+  background: var(--bg, #101725); color: var(--text, #e8edf6);
+  opacity: 1; transition: opacity 250ms ease;
+}
+.sv-loading-light .sv-loading-screen, body.theme-light ~ .sv-loading-screen {
+  background: #f3f5f9; color: #1c2434;
+}
+.sv-logo-wrap {
+  position: relative; width: min(64vw, 300px); overflow: hidden;
+  animation: sv-logo-in 650ms cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform 250ms ease, opacity 250ms ease;
+}
+.sv-loading-logo { display: block; width: 100%; height: auto; }
+.sv-quick .sv-logo-wrap { animation-duration: 180ms; }
+.sv-logo-shine {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, #ffffff30 50%, transparent 65%);
+  animation: sv-shine 1100ms ease both;
+}
+.sv-loading-indicator {
+  position: absolute; top: calc(50% + 110px); width: 64px; height: 3px;
+  background: #2563eb25; border-radius: 20px; overflow: hidden;
+  transition: opacity 150ms ease;
+}
+.sv-loading-indicator span {
+  display: block; height: 100%; width: 45%; border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #c8102e);
+  animation: sv-progress 900ms ease-in-out infinite alternate;
+}
+.sv-loading-screen.sv-leaving { opacity: 0; transition-duration: 150ms; }
+.sv-leaving .sv-logo-wrap { animation: none; transform: scale(1.055); opacity: 0; }
+.sv-leaving .sv-loading-indicator { opacity: 0; }
+.sv-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.sv-motion .page-content.fade-in { animation: none; }
+.sv-entering :is(.page-content, .login-container) { animation: sv-page-in 600ms cubic-bezier(.16,1,.3,1) both; }
+.sv-motion .sv-reveal { animation: sv-page-in 550ms cubic-bezier(.16,1,.3,1) var(--sv-delay, 0ms) both; }
+.sv-exiting :is(.main-content, .sidebar, .login-container) { animation: sv-page-out 180ms ease-in both; pointer-events: none; }
+.sv-motion :is(.btn, .btn-login, .settings-btn, .logout-btn) {
+  transition: scale 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+}
+.sv-motion :is(.card, .stat-card, .kpi-card) { transition: translate 200ms ease, box-shadow 200ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .sv-motion :is(.btn, .btn-login, .settings-btn, .logout-btn):not(:disabled):hover { scale: 1.025; box-shadow: var(--shadow-md); }
+  .sv-motion :is(.card, .stat-card, .kpi-card):hover { translate: 0 -4px; box-shadow: var(--shadow-md); }
+}
+.sv-motion :is(.btn, .btn-login, .settings-btn, .logout-btn):not(:disabled):active { scale: .97; }
+.sv-entering .nav-item.active { animation: sv-active 550ms ease both; }
+@keyframes sv-logo-in { from { opacity: 0; transform: translateY(12px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes sv-shine { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
+@keyframes sv-progress { from { transform: translateX(-100%); } to { transform: translateX(225%); } }
+@keyframes sv-page-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+@keyframes sv-page-out { to { opacity: 0; transform: translateY(-10px) scale(.99); } }
+@keyframes sv-active { from { box-shadow: inset 0 0 0 var(--accent); } to { box-shadow: inset 3px 0 0 var(--accent); } }
+@media (prefers-reduced-motion: reduce) {
+  html.sv-motion *, html.sv-motion *::before, html.sv-motion *::after {
+    animation-duration: .01ms !important; animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important; transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .sv-motion :is(.btn, .btn-login, .settings-btn, .logout-btn, .card, .stat-card, .kpi-card) { scale: none !important; translate: none !important; }
+  .sv-logo-shine { display: none; }
+}
+@media print { .sv-loading-screen { display: none !important; } .sv-loading body > :is(#app, .login-container) { visibility: visible; } }

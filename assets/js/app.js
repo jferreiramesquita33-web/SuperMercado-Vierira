@@ -45,11 +45,12 @@ function showConfirm(msg, onConfirm, opts = {}) {
 
 // ======= ANIMATED COUNTER =======
 function animateValue(el, from, to, duration = 800, prefix = '', suffix = '') {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) duration = 0;
   const start = performance.now();
   const forceFloat = arguments.length > 6 ? arguments[6] : false;
   const isFloat = forceFloat || String(to).includes('.');
   const update = (time) => {
-    const progress = Math.min((time - start) / duration, 1);
+    const progress = duration === 0 ? 1 : Math.min((time - start) / duration, 1);
     const eased = 1 - Math.pow(1 - progress, 3);
     const current = from + (to - from) * eased;
     el.textContent = prefix + (isFloat
@@ -156,6 +157,7 @@ function renderSidebar(active) {
 
 // ======= NAV CLICK ANIMATION =======
 function navClick(el) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   el.style.transform = 'scale(0.96)';
   setTimeout(() => { el.style.transform = ''; }, 150);
 }
@@ -356,7 +358,7 @@ function handleSearch(q) {
 
   if (!results.length) { res.classList.remove('open'); return; }
   res.innerHTML = results.slice(0,6).map(r => `
-    <div class="search-result-item" onclick="location.href='${r.href}'">
+    <div class="search-result-item" onclick="goTo('${r.href}')">
       <span>${r.label}</span>
       <span class="result-type">${r.type}</span>
     </div>`).join('');
@@ -398,12 +400,9 @@ function showNotifications() {
 // ======= TRANSIÇÃO DE ENTRADA/SAÍDA ENTRE PÁGINAS =======
 // Ao clicar em qualquer link interno (menu lateral, breadcrumbs, etc.),
 // espera a animação de saída terminar antes de navegar de fato.
-const SV_EXIT_MS = 260;
-
 function goTo(url) {
-  if (document.body.classList.contains('page-exit')) return;
-  document.body.classList.add('page-exit');
-  setTimeout(() => { window.location.href = url; }, SV_EXIT_MS);
+  if (window.SVTransitions) return window.SVTransitions.navigate(url);
+  window.location.href = url;
 }
 
 // ======= BOAS-VINDAS E DESPEDIDA =======
@@ -433,13 +432,14 @@ function showSessionOverlay(mode, onComplete) {
   document.body.appendChild(overlay);
 
   requestAnimationFrame(() => overlay.classList.add('is-visible'));
-  const duration = isWelcome ? 1650 : 1200;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const duration = reduced ? 0 : (isWelcome ? 1650 : 1200);
   window.setTimeout(() => {
     overlay.classList.add('is-leaving');
     window.setTimeout(() => {
       overlay.remove();
       if (onComplete) onComplete();
-    }, 300);
+    }, reduced ? 0 : 300);
   }, duration);
 }
 
@@ -450,18 +450,7 @@ function showGoodbye(onComplete) {
 document.addEventListener('DOMContentLoaded', () => {
   if (sessionStorage.getItem('sv_show_welcome') === 'true') {
     sessionStorage.removeItem('sv_show_welcome');
-    showSessionOverlay('welcome');
+    if (!window.SVTransitions || window.SVTransitions.ready) showSessionOverlay('welcome');
+    else document.addEventListener('sv:page-ready', () => showSessionOverlay('welcome'), { once: true });
   }
-});
-
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('a[href]');
-  if (!link) return;
-  const href = link.getAttribute('href');
-  if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-  if (link.target === '_blank' || link.hasAttribute('download')) return;
-  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // abrir em nova aba etc.
-  // apenas links internos (mesmo site), como páginas .html do sistema
-  e.preventDefault();
-  goTo(href);
 });
