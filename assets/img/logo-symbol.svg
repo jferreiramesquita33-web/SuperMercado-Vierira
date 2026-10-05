@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 286" fill="none">
+  <title>Símbolo Vieira</title>
+  <!-- Vector outline isolated from the supplied Vieira mark; no background card. -->
+  <defs>
+    <linearGradient id="vieira-fold" x1="24" y1="240" x2="234" y2="18" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#371381"/>
+      <stop offset=".45" stop-color="#3035a4"/>
+      <stop offset="1" stop-color="#489ddb"/>
+    </linearGradient>
+    <linearGradient id="vieira-tip" x1="17" y1="62" x2="74" y2="164" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#48b8fb"/>
+      <stop offset="1" stop-color="#2265f7"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#vieira-fold)" d="M36 6 230 5Q235 5 234 11L224 126Q219 164 183 186L20 279Q6 287 5 274L8 201Q8 193 15 189L169 103Q177 99 169 93L35 13Q29 9 33 6Z"/>
+  <path fill="url(#vieira-tip)" d="m16 62 93 64-100 57Z"/>
+</svg>

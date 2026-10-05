@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const express = require("express");
 const path = require("path");
@@ -10,7 +10,25 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 // Frontend
-app.use(express.static(path.join(__dirname, "..")));
+const frontend = path.join(__dirname, '..');
+app.use('/assets', express.static(path.join(frontend, 'assets')));
+app.use('/pages', express.static(path.join(frontend, 'pages')));
+app.get(['/', '/index.html'], (req, res) => res.sendFile(path.join(frontend, 'index.html')));
+app.use('/api/produtos', (req, res, next) => {
+  if (!supabase) return res.status(503).json({ erro: 'Configure SUPABASE_URL e SUPABASE_KEY no backend/.env.' });
+  next();
+});
+function validateProduct(req, res, next) {
+  const body = req.body;
+  if (!body || typeof body.nome !== 'string' || !body.nome.trim() ||
+      ['preco', 'estoque'].some(key => body[key] === undefined || body[key] === null || body[key] === '' || !['number','string'].includes(typeof body[key]) || !Number.isFinite(Number(body[key])) || Number(body[key]) < 0) ||
+      (body.minimo !== undefined && (body.minimo === null || !['number','string'].includes(typeof body.minimo) || !Number.isFinite(Number(body.minimo)) || Number(body.minimo) < 0)) ||
+      ['categoria', 'unidade'].some(key => body[key] != null && typeof body[key] !== 'string') ||
+      (body.comprar !== undefined && typeof body.comprar !== 'boolean')) {
+    return res.status(400).json({ erro: 'Informe nome e valores numéricos válidos, sem valores negativos.' });
+  }
+  next();
+}
 
 // =========================
 // TESTE
@@ -59,7 +77,7 @@ app.get("/api/produtos", async (req, res) => {
 // CADASTRAR PRODUTO
 // =========================
 
-app.post("/api/produtos", async (req, res) => {
+app.post("/api/produtos", validateProduct, async (req, res) => {
   const {
     nome,
     preco,
@@ -122,10 +140,10 @@ app.post("/api/produtos", async (req, res) => {
 // EDITAR PRODUTO
 // =========================
 
-app.put("/api/produtos/:id", async (req, res) => {
+app.put("/api/produtos/:id", validateProduct, async (req, res) => {
   const id = Number(req.params.id);
 
-  if (!Number.isInteger(id)) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
     return res.status(400).json({
       erro: "ID do produto inválido"
     });
@@ -164,6 +182,7 @@ app.put("/api/produtos/:id", async (req, res) => {
       .single();
 
     if (error) {
+      if (error.code === "PGRST116") return res.status(404).json({ erro: "Produto não encontrado" });
       console.error("Erro Supabase ao editar:", error);
 
       return res.status(500).json({
@@ -195,7 +214,7 @@ app.put("/api/produtos/:id", async (req, res) => {
 app.delete("/api/produtos/:id", async (req, res) => {
   const id = Number(req.params.id);
 
-  if (!Number.isInteger(id)) {
+  if (!Number.isSafeInteger(id) || id <= 0) {
     return res.status(400).json({
       erro: "ID do produto inválido"
     });
@@ -210,6 +229,7 @@ app.delete("/api/produtos/:id", async (req, res) => {
       .single();
 
     if (error) {
+      if (error.code === "PGRST116") return res.status(404).json({ erro: "Produto não encontrado" });
       console.error("Erro Supabase ao excluir:", error);
 
       return res.status(500).json({
@@ -237,6 +257,11 @@ app.delete("/api/produtos/:id", async (req, res) => {
 // =========================
 // SERVIDOR
 // =========================
+
+app.use('/api', (req, res) => res.status(404).json({ erro: 'Rota não encontrada' }));
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({ erro: err.status === 400 ? 'JSON inválido' : 'Erro interno do servidor' });
+});
 
 if (require.main === module) {
   app.listen(PORT, () => {

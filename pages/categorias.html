@@ -5,10 +5,10 @@
   <title>Categorias — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="stylesheet" href="../assets/css/style.css?v=6">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
-  <link rel="stylesheet" href="../assets/css/transitions.css?v=1">
-  <script src="../assets/js/transitions.js?v=1"></script>
+  <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
+  <script src="../assets/js/transitions.js?v=5"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -23,7 +23,7 @@
 </div>
 <script src="../assets/js/auth.js?v=5"></script>
 <script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=5"></script>
+<script src="../assets/js/app.js?v=6"></script>
 <script>
 checkAuth();
 initBrightness();
@@ -40,7 +40,7 @@ function render() {
     ${renderSidebar('categorias')}
     <div class="main-content">
       ${topbar('Categorias')}
-      <div class="page-content fade-in">
+      <div class="page-content">
         <div class="section-header">
           <h2 class="section-title">Categorias Financeiras</h2>
           <button class="btn btn-primary" onclick="openModal()">
@@ -56,7 +56,7 @@ function render() {
             <div class="table-wrap"><table>
               <thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
               <tbody>${entradas.map(c=>`<tr>
-                <td><b>${c.nome}</b></td>
+                <td><b>${escapeHTML(c.nome)}</b></td>
                 <td><span class="badge badge-green">Entrada</span></td>
                 <td><div class="td-actions">
                   <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${c.id}')">✏️</button>
@@ -72,7 +72,7 @@ function render() {
             <div class="table-wrap"><table>
               <thead><tr><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
               <tbody>${saidas.map(c=>`<tr>
-                <td><b>${c.nome}</b></td>
+                <td><b>${escapeHTML(c.nome)}</b></td>
                 <td><span class="badge badge-red">Saída</span></td>
                 <td><div class="td-actions">
                   <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${c.id}')">✏️</button>
@@ -93,7 +93,7 @@ function openModal(id=null) {
   if (!c) c = {};
   document.getElementById('modal-title').textContent = id ? 'Editar Categoria' : 'Nova Categoria';
   document.getElementById('modal-body').innerHTML = `
-    <div class="form-group"><label>Nome da Categoria *</label><input id="f-nome" value="${c.nome||''}" placeholder="Ex: Fornecedor"></div>
+    <div class="form-group"><label>Nome da Categoria *</label><input id="f-nome" value="${escapeHTML(c.nome||'')}" placeholder="Ex: Fornecedor"></div>
     <div class="form-group"><label>Tipo *</label>
       <select id="f-tipo">
         <option value="saida" ${(c.tipo||'')==='saida'?'selected':''}>Saída (despesa)</option>

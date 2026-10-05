@@ -5,10 +5,10 @@
   <title>Vales — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="stylesheet" href="../assets/css/style.css?v=6">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
-  <link rel="stylesheet" href="../assets/css/transitions.css?v=1">
-  <script src="../assets/js/transitions.js?v=1"></script>
+  <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
+  <script src="../assets/js/transitions.js?v=5"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -23,7 +23,7 @@
 </div>
 <script src="../assets/js/auth.js?v=5"></script>
 <script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=5"></script>
+<script src="../assets/js/app.js?v=6"></script>
 <script>
 checkAuth();
 initBrightness();
@@ -48,7 +48,7 @@ function render(){
     ${renderSidebar('vales')}
     <div class="main-content">
       ${topbar('Controle de Vales')}
-      <div class="page-content fade-in">
+      <div class="page-content">
         <div class="section-header">
           <h2 class="section-title">Vales dos Funcionários</h2>
           <button class="btn btn-primary" onclick="openModal()">
@@ -63,9 +63,9 @@ function render(){
           <div class="stats-grid" style="margin-bottom:0">
             ${resumo.map(({f,total})=>`
             <div class="stat-card purple">
-              <div class="stat-label">${f.nome}</div>
+              <div class="stat-label">${escapeHTML(f.nome)}</div>
               <div class="stat-value" style="color:var(--purple);font-size:1.1rem">${fmtMoney(total)}</div>
-              <div class="stat-sub">${f.cargo||''}</div>
+              <div class="stat-sub">${escapeHTML(f.cargo||'')}</div>
             </div>`).join('')}
           </div>
         </div>`:''}
@@ -73,7 +73,7 @@ function render(){
         <div class="filters">
           <select onchange="filterFunc=this.value;render()">
             <option value="">Todos os funcionários</option>
-            ${funcs.map(f=>`<option value="${f.id}" ${filterFunc===f.id?'selected':''}>${f.nome}</option>`).join('')}
+            ${funcs.map(f=>`<option value="${f.id}" ${filterFunc===f.id?'selected':''}>${escapeHTML(f.nome)}</option>`).join('')}
           </select>
           <input type="month" value="${filterPeriod}" onchange="filterPeriod=this.value;render()">
           <button class="btn btn-secondary btn-sm" onclick="filterFunc='';filterPeriod='';render()">Limpar</button>
@@ -87,10 +87,10 @@ function render(){
               ${vales.map(v=>{
                 const f=funcs.find(x=>x.id===v.funcionarioId);
                 return `<tr>
-                  <td><b>${f?f.nome:'—'}</b>${f?`<br><small class="text-muted">${f.cargo||''}</small>`:''}</td>
+                  <td><b>${f?f.nome:'—'}</b>${f?`<br><small class="text-muted">${escapeHTML(f.cargo||'')}</small>`:''}</td>
                   <td>${fmtDate(v.data)}</td>
                   <td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td>
-                  <td>${v.motivo||'—'}</td>
+                  <td>${escapeHTML(v.motivo||'—')}</td>
                   <td>${v.comprovante?`<small class="text-muted">📎 ${v.comprovante}</small>`:'—'}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${v.id}')">✏️</button>
@@ -116,14 +116,14 @@ function openModal(id=null){
     <div class="form-group"><label>Funcionário *</label>
       <select id="f-func">
         <option value="">Selecione</option>
-        ${funcs.map(f=>`<option value="${f.id}" ${v.funcionarioId===f.id?'selected':''}>${f.nome}</option>`).join('')}
+        ${funcs.map(f=>`<option value="${f.id}" ${v.funcionarioId===f.id?'selected':''}>${escapeHTML(f.nome)}</option>`).join('')}
       </select>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Data *</label><input id="f-data" type="date" value="${v.data||todayStr()}"></div>
       <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${v.valor||''}" placeholder="0,00"></div>
     </div>
-    <div class="form-group"><label>Motivo/Descrição</label><input id="f-motivo" value="${v.motivo||''}" placeholder="Ex: Adiantamento salarial"></div>
+    <div class="form-group"><label>Motivo/Descrição</label><input id="f-motivo" value="${escapeHTML(v.motivo||'')}" placeholder="Ex: Adiantamento salarial"></div>
     <div class="form-group"><label>Comprovante</label><input type="text" id="f-comp" value="${v.comprovante||''}" placeholder="Nome do arquivo (simulação)"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -136,6 +136,7 @@ function salvar(){
   const funcId=document.getElementById('f-func').value;
   const data=document.getElementById('f-data').value;
   const valor=document.getElementById('f-valor').value;
+  if (!Number.isFinite(Number(valor)) || Number(valor) <= 0) { showToast('Informe um valor maior que zero.', 'warn'); return; }
   if(!funcId||!data||!valor){alert('Preencha os campos obrigatórios');return;}
   const obj={id:editId||SV.newId(),funcionarioId:funcId,data,valor:parseFloat(valor),motivo:document.getElementById('f-motivo').value,comprovante:document.getElementById('f-comp').value};
   let list=SV.get('vales');

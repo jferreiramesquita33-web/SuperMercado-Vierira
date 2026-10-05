@@ -2,7 +2,8 @@
 const SV = {
   get(key) {
     try {
-      return JSON.parse(localStorage.getItem('sv_' + key)) || [];
+      const value = JSON.parse(localStorage.getItem('sv_' + key));
+      return Array.isArray(value) ? value : [];
     } catch {
       return [];
     }
@@ -36,7 +37,8 @@ function fmtDate(d) {
 }
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function currentMonth() {
@@ -113,7 +115,7 @@ function statusBadgeReceber(status) {
 function initSeedData() {
 
   // Categorias
-  if (!SV.get('categorias').length) {
+  if (localStorage.getItem('sv_categorias') === null) {
     SV.set('categorias', [
       { id: SV.newId(), nome: 'Fornecedor', tipo: 'saida' },
       { id: SV.newId(), nome: 'Energia', tipo: 'saida' },
@@ -134,7 +136,7 @@ function initSeedData() {
 
 
   // Funcionários
-  if (!SV.get('funcionarios').length) {
+  if (localStorage.getItem('sv_funcionarios') === null) {
     SV.set('funcionarios', [
       {
         id: SV.newId(),
@@ -164,156 +166,6 @@ function initSeedData() {
   }
 
 
-  // Produtos antigos do localStorage
-  // Mantidos por enquanto para não quebrar outras páginas.
-  if (!SV.get('produtos').length) {
-    SV.set('produtos', [
-      {
-        id: SV.newId(),
-        nome: 'Arroz 5kg',
-        categoria: 'Mercearia',
-        estoque: 8,
-        minimo: 12,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Feijao 1kg',
-        categoria: 'Mercearia',
-        estoque: 18,
-        minimo: 10,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Acucar 2kg',
-        categoria: 'Mercearia',
-        estoque: 6,
-        minimo: 10,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Cafe 500g',
-        categoria: 'Mercearia',
-        estoque: 5,
-        minimo: 8,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Oleo de Soja',
-        categoria: 'Mercearia',
-        estoque: 20,
-        minimo: 12,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Macarrao',
-        categoria: 'Mercearia',
-        estoque: 9,
-        minimo: 15,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Leite 1L',
-        categoria: 'Laticinios',
-        estoque: 22,
-        minimo: 20,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Manteiga',
-        categoria: 'Laticinios',
-        estoque: 4,
-        minimo: 8,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Queijo Mussarela',
-        categoria: 'Frios',
-        estoque: 3,
-        minimo: 5,
-        unidade: 'kg',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Presunto',
-        categoria: 'Frios',
-        estoque: 6,
-        minimo: 5,
-        unidade: 'kg',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Pao Frances',
-        categoria: 'Padaria',
-        estoque: 35,
-        minimo: 30,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Refrigerante 2L',
-        categoria: 'Bebidas',
-        estoque: 10,
-        minimo: 12,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Agua Mineral',
-        categoria: 'Bebidas',
-        estoque: 28,
-        minimo: 20,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Detergente',
-        categoria: 'Limpeza',
-        estoque: 7,
-        minimo: 10,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Sabao em Po',
-        categoria: 'Limpeza',
-        estoque: 11,
-        minimo: 8,
-        unidade: 'un',
-        comprar: false
-      },
-      {
-        id: SV.newId(),
-        nome: 'Papel Higienico',
-        categoria: 'Higiene',
-        estoque: 4,
-        minimo: 10,
-        unidade: 'pct',
-        comprar: false
-      }
-    ]);
-  }
 }
 
 // ======= PRODUTOS - API =======
@@ -332,11 +184,14 @@ async function carregarProdutos() {
       );
     }
 
-    return await resposta.json();
+    const produtos = await resposta.json();
+    if (!Array.isArray(produtos)) throw new Error('Resposta de produtos inválida');
+    SV.set('produtos', produtos);
+    return produtos;
 
   } catch (erro) {
     console.error('Erro ao carregar produtos:', erro);
-    return [];
+    throw erro;
   }
 }
 

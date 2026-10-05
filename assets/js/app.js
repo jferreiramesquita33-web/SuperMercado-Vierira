@@ -1,3 +1,7 @@
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':'&quot;',"'":"&#39;"}[c]));
+}
+
 // ======= TOAST SYSTEM =======
 function showToast(msg, type = 'success', duration = 3200) {
   let container = document.getElementById('toast-container');
@@ -14,7 +18,7 @@ function showToast(msg, type = 'success', duration = 3200) {
   };
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
-  t.innerHTML = `${icons[type]||icons.info}<span>${msg}</span>`;
+  t.innerHTML = `${icons[type]||icons.info}<span>${escapeHTML(msg)}</span>`;
   container.appendChild(t);
   const remove = () => { t.classList.add('out'); setTimeout(() => t.remove(), 320); };
   setTimeout(remove, duration);
@@ -31,7 +35,7 @@ function showConfirm(msg, onConfirm, opts = {}) {
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
       <h3>${opts.title || 'Confirmar ação'}</h3>
-      <p>${msg}</p>
+      <p>${escapeHTML(msg)}</p>
       <div class="modal-footer" style="justify-content:center;margin-top:22px">
         <button class="btn btn-secondary" id="confirm-cancel">Cancelar</button>
         <button class="btn btn-danger" id="confirm-ok">${opts.okLabel||'Excluir'}</button>
@@ -270,10 +274,10 @@ function topbar(title) {
   const userType = localStorage.getItem('sv_user_type') || 'admin';
   const userInitial = userName.charAt(0).toUpperCase();
   const userRole = 'Gerente';
-  const contas = (JSON.parse(localStorage.getItem('sv_contasPagar')) || []);
+  const contas = SV.get('contasPagar');
   const vencidas = contas.filter(c => {
     if (c.status === 'paga' || c.status === 'paga após vencimento') return false;
-    return c.dataVencimento && c.dataVencimento < new Date().toISOString().split('T')[0];
+    return c.dataVencimento && c.dataVencimento < todayStr();
   }).length;
 
   return `<div class="topbar">
@@ -337,8 +341,8 @@ function handleSearch(q) {
     'Arroz', 'Feijão', 'Açúcar', 'Café', 'Óleo', 'Sal', 'Farinha', 'Leite', 'Manteiga', 'Macarrão',
     'Sabão', 'Detergente', 'Shampoo', 'Papel Higiênico', 'Refrigerante', 'Suco', 'Biscoito', 'Pão'
   ];
-  const produtosCadastrados = (JSON.parse(localStorage.getItem('sv_produtos')) || []).map(p => p.nome);
-  const funcionarios = (JSON.parse(localStorage.getItem('sv_funcionarios')) || []).map(f => f.nome);
+  const produtosCadastrados = SV.get('produtos').map(p => p.nome);
+  const funcionarios = SV.get('funcionarios').map(f => f.nome);
   const pages = [
     { label: 'Dashboard', href: 'dashboard.html', type: 'Página' },
     { label: 'Contas a Pagar', href: 'contas-pagar.html', type: 'Página' },
@@ -359,7 +363,7 @@ function handleSearch(q) {
   if (!results.length) { res.classList.remove('open'); return; }
   res.innerHTML = results.slice(0,6).map(r => `
     <div class="search-result-item" onclick="goTo('${r.href}')">
-      <span>${r.label}</span>
+      <span>${escapeHTML(r.label)}</span>
       <span class="result-type">${r.type}</span>
     </div>`).join('');
   res.classList.add('open');
@@ -371,8 +375,8 @@ function closeSearch() {
 
 // ======= NOTIFICATIONS =======
 function showNotifications() {
-  const contas = (JSON.parse(localStorage.getItem('sv_contasPagar')) || []);
-  const today = new Date().toISOString().split('T')[0];
+  const contas = SV.get('contasPagar');
+  const today = todayStr();
   const vencidas = contas.filter(c => {
     if (c.status === 'paga' || c.status === 'paga após vencimento') return false;
     return c.dataVencimento && c.dataVencimento < today;
@@ -397,60 +401,7 @@ function showNotifications() {
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
 }
 
-// ======= TRANSIÇÃO DE ENTRADA/SAÍDA ENTRE PÁGINAS =======
-// Ao clicar em qualquer link interno (menu lateral, breadcrumbs, etc.),
-// espera a animação de saída terminar antes de navegar de fato.
+// Direct navigation without visual delays.
 function goTo(url) {
-  if (window.SVTransitions) return window.SVTransitions.navigate(url);
   window.location.href = url;
 }
-
-// ======= BOAS-VINDAS E DESPEDIDA =======
-// A mensagem de boas-vindas é mostrada uma vez, logo após o login.
-function showSessionOverlay(mode, onComplete) {
-  if (document.getElementById('session-overlay')) return;
-
-  const name = localStorage.getItem('sv_user_name') || 'Gerente';
-  const isWelcome = mode === 'welcome';
-  const overlay = document.createElement('div');
-  overlay.id = 'session-overlay';
-  overlay.className = `session-overlay session-overlay--${mode}`;
-  overlay.setAttribute('role', 'status');
-  overlay.innerHTML = `
-    <div class="session-overlay__glow"></div>
-    <div class="session-overlay__card">
-      <div class="session-overlay__icon" aria-hidden="true">
-        ${isWelcome
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>'}
-      </div>
-      <p class="session-overlay__eyebrow">Supermercado Vieira</p>
-      <h1>${isWelcome ? `Bem-vindo, ${name}!` : `Até logo, ${name}.`}</h1>
-      <p>${isWelcome ? 'Seu painel está pronto para começar.' : 'Sua sessão foi encerrada com segurança.'}</p>
-      <div class="session-overlay__bar"><span></span></div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  requestAnimationFrame(() => overlay.classList.add('is-visible'));
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const duration = reduced ? 0 : (isWelcome ? 1650 : 1200);
-  window.setTimeout(() => {
-    overlay.classList.add('is-leaving');
-    window.setTimeout(() => {
-      overlay.remove();
-      if (onComplete) onComplete();
-    }, reduced ? 0 : 300);
-  }, duration);
-}
-
-function showGoodbye(onComplete) {
-  showSessionOverlay('goodbye', onComplete);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  if (sessionStorage.getItem('sv_show_welcome') === 'true') {
-    sessionStorage.removeItem('sv_show_welcome');
-    if (!window.SVTransitions || window.SVTransitions.ready) showSessionOverlay('welcome');
-    else document.addEventListener('sv:page-ready', () => showSessionOverlay('welcome'), { once: true });
-  }
-});

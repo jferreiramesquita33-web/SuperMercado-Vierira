@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Supermercado Vieira â€” Acesso Gerente</title>
+  <title>Supermercado Vieira — Acesso Gerencial</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css?v=5">
-  <link rel="stylesheet" href="assets/css/login.css?v=5">
+  <link rel="stylesheet" href="assets/css/style.css?v=6">
+  <link rel="stylesheet" href="assets/css/login.css?v=6">
   <link rel="icon" type="image/png" href="assets/img/logo-icon.png">
-  <link rel="stylesheet" href="assets/css/transitions.css?v=1">
-  <script src="assets/js/transitions.js?v=1"></script>
+  <link rel="stylesheet" href="assets/css/login-transition.css?v=1">
+  <script src="assets/js/login-transition.js?v=1"></script>
+  <link rel="stylesheet" href="assets/css/transitions.css?v=4">
+  <script src="assets/js/transitions.js?v=5"></script>
 </head>
 <body class="login-page">
   <div class="login-bg">
@@ -80,22 +82,11 @@
       </div>
     </div>
 
-    <div class="login-welcome" id="login-welcome" style="display:none">
-      <div class="welcome-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-      <div class="welcome-text">
-        <strong id="welcome-name">Bem-vindo!</strong>
-        <span>Redirecionando para o painel...</span>
-      </div>
-      <div class="welcome-spinner"></div>
-    </div>
-
     <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
   </div>
 
   <script src="assets/js/auth.js?v=5"></script>
-  <script src="assets/js/app.js?v=5"></script>
+  <script src="assets/js/app.js?v=6"></script>
   <script>
     initTheme();
     applySiteImage();
@@ -114,43 +105,24 @@
       setTimeout(() => err.style.display = 'none', 3500);
     }
 
-    function setLoading(btnId, loading) {
-      const btn = document.getElementById(btnId);
-      const txt = document.getElementById(btnId + '-text');
-      if (!btn) return;
-      btn.disabled = loading;
-      if (loading) {
-        btn.classList.add('loading');
-        if (txt) txt.textContent = 'Entrando...';
-      } else {
-        btn.classList.remove('loading');
-        if (txt) txt.textContent = 'Entrar no sistema';
-      }
-    }
+    let loginInProgress = false;
+    window.addEventListener('pageshow', event => {
+      if (!event.persisted) return;
+      loginInProgress = false;
+      document.getElementById('login-btn-admin').disabled = false;
+    });
 
     function doLogin(username, password, btnId) {
+      if (loginInProgress) return;
       const user = SV_USERS.find(u => u.username === username && u.password === password);
       if (user) {
-        setLoading(btnId, true);
+        loginInProgress = true;
+        document.getElementById(btnId || 'login-btn-admin').disabled = true;
         localStorage.setItem('sv_logged', 'true');
         localStorage.setItem('sv_user_type', user.type);
         localStorage.setItem('sv_user_name', user.name);
-        sessionStorage.setItem('sv_show_welcome', 'true');
-
-        const card = document.querySelector('.login-card');
-        const welcome = document.getElementById('login-welcome');
-        const welcomeName = document.getElementById('welcome-name');
-        if (card) {
-          card.style.opacity = '0';
-          card.style.transform = 'translateY(-10px)';
-        }
-        setTimeout(() => {
-          if (card) card.style.display = 'none';
-          if (welcome) welcome.style.display = 'flex';
-          if (welcomeName) welcomeName.textContent = `Bem-vindo, ${user.name}!`;
-        }, 280);
-
-        setTimeout(() => { window.location.href = 'pages/dashboard.html'; }, 1500);
+        if (window.SVLoginTransition) window.SVLoginTransition.start();
+        else window.location.href = 'pages/dashboard.html';
       } else {
         showError('Usuário ou senha incorretos.');
       }

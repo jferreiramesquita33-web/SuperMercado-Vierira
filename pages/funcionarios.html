@@ -6,10 +6,10 @@
   <title>Funcionarios - Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="stylesheet" href="../assets/css/style.css?v=6">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
-  <link rel="stylesheet" href="../assets/css/transitions.css?v=1">
-  <script src="../assets/js/transitions.js?v=1"></script>
+  <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
+  <script src="../assets/js/transitions.js?v=5"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -25,7 +25,7 @@
 
 <script src="../assets/js/auth.js?v=5"></script>
 <script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=5"></script>
+<script src="../assets/js/app.js?v=6"></script>
 <script>
 checkAuth();
 initBrightness();
@@ -59,7 +59,7 @@ function render() {
     ${renderSidebar('funcionarios')}
     <div class="main-content">
       ${topbar('Funcionarios')}
-      <div class="page-content fade-in">
+      <div class="page-content">
         <div class="section-header">
           <div>
             <h2 class="section-title">Funcionarios</h2>
@@ -131,10 +131,10 @@ function render() {
                   const liquido = salarioFuncionario(f) - totalVale;
                   return `<tr>
                     <td>
-                      <b>${f.nome}</b>
-                      <div class="text-muted" style="font-size:0.75rem">${f.cpf || 'CPF nao informado'} · ${f.telefone || 'sem telefone'}</div>
+                      <b>${escapeHTML(f.nome)}</b>
+                      <div class="text-muted" style="font-size:0.75rem">${escapeHTML(f.cpf || 'CPF nao informado')} · ${escapeHTML(f.telefone || 'sem telefone')}</div>
                     </td>
-                    <td>${f.cargo || '-'}</td>
+                    <td>${escapeHTML(f.cargo || '-')}</td>
                     <td>
                       <div class="font-mono">${fmtMoney(salarioFuncionario(f))}</div>
                       <div class="text-muted" style="font-size:0.75rem">Liquido aprox. ${fmtMoney(liquido)}</div>
@@ -172,12 +172,12 @@ function openModal(id = null) {
   document.getElementById('modal-title').textContent = id ? 'Editar Funcionario' : 'Novo Funcionario';
   document.getElementById('modal-body').innerHTML = `
     <div class="form-row">
-      <div class="form-group"><label>Nome Completo *</label><input id="f-nome" value="${f.nome || ''}" placeholder="Nome"></div>
-      <div class="form-group"><label>CPF</label><input id="f-cpf" value="${f.cpf || ''}" placeholder="000.000.000-00"></div>
+      <div class="form-group"><label>Nome Completo *</label><input id="f-nome" value="${escapeHTML(f.nome || '')}" placeholder="Nome"></div>
+      <div class="form-group"><label>CPF</label><input id="f-cpf" value="${escapeHTML(f.cpf || '')}" placeholder="000.000.000-00"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Cargo</label><input id="f-cargo" value="${f.cargo || ''}" placeholder="Ex: Caixa"></div>
-      <div class="form-group"><label>Telefone</label><input id="f-tel" value="${f.telefone || ''}" placeholder="(61) 99999-9999"></div>
+      <div class="form-group"><label>Cargo</label><input id="f-cargo" value="${escapeHTML(f.cargo || '')}" placeholder="Ex: Caixa"></div>
+      <div class="form-group"><label>Telefone</label><input id="f-tel" value="${escapeHTML(f.telefone || '')}" placeholder="(61) 99999-9999"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Salario mensal</label><input id="f-salario" type="number" min="0" step="0.01" value="${f.salario || 0}"></div>
@@ -217,6 +217,7 @@ function salvar() {
     status: document.getElementById('f-status').value
   };
 
+  if (![obj.salario, obj.cargaHoraria].every(v => Number.isFinite(v) && v >= 0)) { showToast('Salário e carga horária devem ser valores válidos.', 'warn'); return; }
   let list = SV.get('funcionarios');
   list = editId ? list.map(x => x.id === editId ? obj : x) : [...list, obj];
   SV.set('funcionarios', list);
@@ -226,6 +227,7 @@ function salvar() {
 }
 
 function excluir(id) {
+  if (SV.get('vales').some(v => v.funcionarioId === id)) { showToast('Este funcionario possui vales registrados. Marque-o como inativo para preservar o historico.', 'warn'); return; }
   showConfirm('Tem certeza que deseja excluir este funcionario?', () => {
     SV.set('funcionarios', SV.get('funcionarios').filter(x => x.id !== id));
     showToast('Funcionario excluido.', 'success');

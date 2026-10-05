@@ -5,10 +5,10 @@
   <title>Contas a Receber — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=5">
+  <link rel="stylesheet" href="../assets/css/style.css?v=6">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
-  <link rel="stylesheet" href="../assets/css/transitions.css?v=1">
-  <script src="../assets/js/transitions.js?v=1"></script>
+  <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
+  <script src="../assets/js/transitions.js?v=5"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -23,7 +23,7 @@
 </div>
 <script src="../assets/js/auth.js?v=5"></script>
 <script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=5"></script>
+<script src="../assets/js/app.js?v=6"></script>
 <script>
 checkAuth();
 initBrightness();
@@ -41,14 +41,14 @@ function render() {
   if (filterPeriod) contas = contas.filter(c=>c.dataVencimento&&c.dataVencimento.startsWith(filterPeriod));
 
   const cats = getCats();
-  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  const catOpts = cats.map(c=>`<option value="${escapeHTML(c.nome)}">${escapeHTML(c.nome)}</option>`).join('');
 
   document.getElementById('app').innerHTML = `
   <div class="app-shell">
     ${renderSidebar('contas-receber')}
     <div class="main-content">
       ${topbar('Contas a Receber')}
-      <div class="page-content fade-in">
+      <div class="page-content">
         <div class="section-header">
           <h2 class="section-title">Contas a Receber</h2>
           <button class="btn btn-primary" onclick="openModal()">
@@ -80,8 +80,8 @@ function render() {
               <thead><tr><th>Descrição</th><th>Categoria</th><th>Origem/Cliente</th><th>Vencimento</th><th>Recebimento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
               <tbody>
                 ${contas.map(c=>`<tr>
-                  <td><b>${c.descricao}</b>${c.observacao?`<br><small class="text-muted">${c.observacao}</small>`:''}</td>
-                  <td>${c.categoria||'—'}</td>
+                  <td><b>${escapeHTML(c.descricao)}</b>${c.observacao?`<br><small class="text-muted">${escapeHTML(c.observacao)}</small>`:''}</td>
+                  <td>${escapeHTML(c.categoria||'—')}</td>
                   <td>${c.origem||'—'}</td>
                   <td>${fmtDate(c.dataVencimento)}</td>
                   <td>${fmtDate(c.dataRecebimento)||'—'}</td>
@@ -107,13 +107,13 @@ function render() {
 function openModal(id = null) {
   editId = id;
   const cats = getCats();
-  const catOpts = cats.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  const catOpts = cats.map(c=>`<option value="${escapeHTML(c.nome)}">${escapeHTML(c.nome)}</option>`).join('');
   let c = id ? SV.get('contasReceber').find(x=>x.id===id) : {};
   if (!c) c = {};
 
   document.getElementById('modal-title').textContent = id ? 'Editar Conta a Receber' : 'Nova Conta a Receber';
   document.getElementById('modal-body').innerHTML = `
-    <div class="form-group"><label>Descrição *</label><input id="f-desc" value="${c.descricao||''}" placeholder="Ex: Venda a prazo"></div>
+    <div class="form-group"><label>Descrição *</label><input id="f-desc" value="${escapeHTML(c.descricao||'')}" placeholder="Ex: Venda a prazo"></div>
     <div class="form-row">
       <div class="form-group"><label>Categoria</label><select id="f-cat"><option value="">Selecione</option>${catOpts}</select></div>
       <div class="form-group"><label>Origem/Cliente</label><input id="f-orig" value="${c.origem||''}" placeholder="Ex: Cliente João"></div>
@@ -133,7 +133,7 @@ function openModal(id = null) {
         </select>
       </div>
     </div>
-    <div class="form-group"><label>Observação</label><textarea id="f-obs">${c.observacao||''}</textarea></div>
+    <div class="form-group"><label>Observação</label><textarea id="f-obs">${escapeHTML(c.observacao||'')}</textarea></div>
     <div class="form-group"><label>Comprovante de Recebimento</label><input type="text" id="f-comp" value="${c.comprovanteRecebimento||''}" placeholder="Nome do arquivo (simulação)"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
@@ -147,11 +147,13 @@ function openModal(id = null) {
 function salvar() {
   const desc = document.getElementById('f-desc').value.trim();
   const valor = document.getElementById('f-valor').value;
+  if (!Number.isFinite(Number(valor)) || Number(valor) <= 0) { showToast('Informe um valor maior que zero.', 'warn'); return; }
   const venc = document.getElementById('f-venc').value;
   if (!desc || !valor || !venc) { alert('Preencha os campos obrigatórios'); return; }
 
   const receb = document.getElementById('f-receb').value;
   let finalStatus = document.getElementById('f-status').value;
+  if ((finalStatus === 'recebida' || finalStatus === 'recebida em atraso') && !receb) { showToast('Informe a data do recebimento.', 'warn'); return; }
   if ((finalStatus==='recebida'||finalStatus==='recebida em atraso') && receb) {
     finalStatus = receb > venc ? 'recebida em atraso' : 'recebida';
   }
