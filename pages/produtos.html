@@ -20,7 +20,16 @@
 
 <body>
 
-<div id="app"></div>
+<div id="app" aria-busy="true">
+  <main class="page-content">
+    <div class="card">
+      <div class="empty-state" role="status" aria-live="polite">
+        <h2>Produtos</h2>
+        <p>Carregando produtos…</p>
+      </div>
+    </div>
+  </main>
+</div>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal" style="max-width:520px">
@@ -38,7 +47,7 @@
 
 
 <script src="../assets/js/auth.js?v=6"></script>
-<script src="../assets/js/storage.js?v=6"></script>
+<script src="../assets/js/storage.js?v=8"></script>
 <script src="../assets/js/app.js?v=6"></script>
 
 <script>
@@ -50,6 +59,7 @@ let editId = null;
 let salvando = false;
 let currentFilter = "todos";
 let produtosCache = [];
+let carregandoProdutos = false;
 
 
 // =====================================================
@@ -184,6 +194,30 @@ function dinheiro(valor) {
 
 async function carregarPaginaProdutos() {
 
+  if (carregandoProdutos) return;
+  carregandoProdutos = true;
+  const botao = document.getElementById('tentar-produtos');
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent = 'Carregando...';
+  }
+  const app = document.getElementById('app');
+  app.setAttribute('aria-busy', 'true');
+  app.innerHTML = `
+    <div class="app-shell">
+      ${renderSidebar('produtos')}
+      <div class="main-content">
+        ${topbar('Produtos')}
+        <main class="page-content">
+          <div class="card">
+            <div class="empty-state" role="status" aria-live="polite">
+              <h2>Carregando produtos…</h2>
+              <p>Consultando o estoque. O menu continua disponível.</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>`;
   try {
 
     produtosCache = await carregarProdutos();
@@ -208,11 +242,13 @@ async function carregarPaginaProdutos() {
 
             <div class="card">
 
-              <div class="empty-state">
+              <div class="empty-state" role="alert">
 
                 <h3>Erro ao carregar produtos</h3>
 
                 <p>${escapeHTML(erro.message)}</p>
+
+                <button id="tentar-produtos" class="btn btn-primary" style="margin-top:16px" onclick="carregarPaginaProdutos()">Tentar novamente</button>
 
               </div>
 
@@ -225,6 +261,9 @@ async function carregarPaginaProdutos() {
       </div>
 
     `;
+  } finally {
+    app.setAttribute('aria-busy', 'false');
+    carregandoProdutos = false;
   }
 }
 
