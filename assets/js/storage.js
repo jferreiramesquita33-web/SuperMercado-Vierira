@@ -171,17 +171,19 @@ function initSeedData() {
 // ======= PRODUTOS - API =======
 
 async function carregarProdutos() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const resposta = await fetch('/api/produtos');
+    const resposta = await fetch('/api/produtos', { signal: controller.signal });
 
     if (!resposta.ok) {
       const erro = await resposta.json().catch(() => ({}));
 
-      throw new Error(
-        erro.detalhes ||
-        erro.erro ||
-        'Erro ao buscar produtos'
-      );
+      const detalhes = erro.detalhes || erro.erro || 'Erro ao buscar produtos';
+      if (resposta.status === 503 || /fetch failed|failed to fetch|network|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|<!doctype|<html|web server is down|service unavailable|gateway timeout/i.test(detalhes)) {
+        throw new Error('O banco de dados está temporariamente indisponível. Tente novamente em instantes.');
+      }
+      throw new Error(detalhes);
     }
 
     const produtos = await resposta.json();
@@ -191,7 +193,15 @@ async function carregarProdutos() {
 
   } catch (erro) {
     console.error('Erro ao carregar produtos:', erro);
+    if (erro.name === 'AbortError') {
+      throw new Error('A consulta dos produtos demorou demais. Tente novamente.');
+    }
+    if (erro instanceof TypeError) {
+      throw new Error('Não foi possível acessar o sistema. Verifique sua conexão e tente novamente.');
+    }
     throw erro;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
