@@ -7,6 +7,18 @@ const supabase = require("./database/db");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function responderErroBanco(res, error, mensagem) {
+  const detalhes = String(error?.message || '');
+  if (/fetch failed|failed to fetch|network|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|AbortError|<!doctype|<html|web server is down|service unavailable|gateway timeout/i.test(detalhes)) {
+    res.set('Retry-After', '15');
+    return res.status(503).json({
+      erro: 'O banco de dados está temporariamente indisponível. Tente novamente em instantes.',
+      codigo: 'BANCO_INDISPONIVEL'
+    });
+  }
+  return res.status(500).json({ erro: mensagem, detalhes, codigo: error?.code });
+}
+
 app.use(express.json());
 
 // Frontend
@@ -55,21 +67,14 @@ app.get("/api/produtos", async (req, res) => {
     if (error) {
       console.error("Erro Supabase ao buscar produtos:", error);
 
-      return res.status(500).json({
-        erro: "Erro ao buscar produtos",
-        detalhes: error.message,
-        codigo: error.code
-      });
+      return responderErroBanco(res, error, "Erro ao buscar produtos");
     }
 
     res.json(data || []);
   } catch (err) {
     console.error("Erro interno:", err);
 
-    res.status(500).json({
-      erro: "Erro interno do servidor",
-      detalhes: err.message
-    });
+    return responderErroBanco(res, err, "Erro interno do servidor");
   }
 });
 
@@ -114,11 +119,7 @@ app.post("/api/produtos", validateProduct, async (req, res) => {
     if (error) {
       console.error("Erro Supabase ao cadastrar:", error);
 
-      return res.status(500).json({
-        erro: "Erro ao cadastrar produto",
-        detalhes: error.message,
-        codigo: error.code
-      });
+      return responderErroBanco(res, error, "Erro ao cadastrar produto");
     }
 
     res.status(201).json({
@@ -129,10 +130,7 @@ app.post("/api/produtos", validateProduct, async (req, res) => {
   } catch (err) {
     console.error("Erro interno:", err);
 
-    res.status(500).json({
-      erro: "Erro interno do servidor",
-      detalhes: err.message
-    });
+    return responderErroBanco(res, err, "Erro interno do servidor");
   }
 });
 
@@ -185,11 +183,7 @@ app.put("/api/produtos/:id", validateProduct, async (req, res) => {
       if (error.code === "PGRST116") return res.status(404).json({ erro: "Produto não encontrado" });
       console.error("Erro Supabase ao editar:", error);
 
-      return res.status(500).json({
-        erro: "Erro ao editar produto",
-        detalhes: error.message,
-        codigo: error.code
-      });
+      return responderErroBanco(res, error, "Erro ao editar produto");
     }
 
     res.json({
@@ -200,10 +194,7 @@ app.put("/api/produtos/:id", validateProduct, async (req, res) => {
   } catch (err) {
     console.error("Erro interno:", err);
 
-    res.status(500).json({
-      erro: "Erro interno do servidor",
-      detalhes: err.message
-    });
+    return responderErroBanco(res, err, "Erro interno do servidor");
   }
 });
 
@@ -232,11 +223,7 @@ app.delete("/api/produtos/:id", async (req, res) => {
       if (error.code === "PGRST116") return res.status(404).json({ erro: "Produto não encontrado" });
       console.error("Erro Supabase ao excluir:", error);
 
-      return res.status(500).json({
-        erro: "Erro ao excluir produto",
-        detalhes: error.message,
-        codigo: error.code
-      });
+      return responderErroBanco(res, error, "Erro ao excluir produto");
     }
 
     res.json({
@@ -247,10 +234,7 @@ app.delete("/api/produtos/:id", async (req, res) => {
   } catch (err) {
     console.error("Erro interno:", err);
 
-    res.status(500).json({
-      erro: "Erro interno do servidor",
-      detalhes: err.message
-    });
+    return responderErroBanco(res, err, "Erro interno do servidor");
   }
 });
 
