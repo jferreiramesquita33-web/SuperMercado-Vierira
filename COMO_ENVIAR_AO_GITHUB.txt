@@ -1,0 +1,18 @@
+SUPERMERCADO VIEIRA — PRODUTOS SEM TELA VAZIA
+
+O banco do Supabase foi reativado. A consulta publicada de produtos respondeu HTTP 200 durante a verificação.
+
+Esta versão mostra o menu e Carregando produtos antes de esperar pela API. Após 15 segundos sem resposta, apresenta uma mensagem e permite tentar novamente. Inclui também as melhorias anteriores de tratamento de falhas do banco e preservação da cópia dos produtos no navegador.
+
+COMO ENVIAR AO GITHUB
+1. Extraia o ZIP.
+2. No repositório SuperMercado-Vierira, use Add file > Upload files.
+3. Envie o conteúdo extraído mantendo a estrutura da raiz e confirme o commit.
+4. Aguarde o deploy do Vercel, se conectado ao repositório, e atualize com Ctrl+F5.
+
+Esta atualização do código precisa ser enviada ao GitHub para aparecer no site. A reativação do banco já foi feita separadamente.
+
+TESTES
+npm test aprovado: API indisponível, recuperação, cache preservado, tela de carregamento imediata, timeout e nova tentativa. Testes simulados não modificam registros reais.
+
+Site: https://sistema-vieira.vercel.app/
