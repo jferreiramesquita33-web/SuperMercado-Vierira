@@ -301,6 +301,10 @@ function topbar(title) {
           <div class="search-results" id="search-results"></div>
         </div>
       </div>
+      <button type="button" class="btn btn-primary btn-save-all" id="btn-salvar-tudo" onclick="salvarTudo()" title="Salvar tudo">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span>Salvar tudo</span>
+      </button>
       <button class="notif-btn" onclick="showNotifications()" title="Notificações">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         ${vencidas > 0 ? `<span class="notif-badge">${vencidas > 9 ? '9+' : vencidas}</span>` : ''}
@@ -404,4 +408,42 @@ function showNotifications() {
 // Direct navigation without visual delays.
 function goTo(url) {
   window.location.href = url;
+}
+
+// ======= SALVAR TUDO (botão global) =======
+let salvandoTudo = false;
+
+async function salvarTudo() {
+  if (salvandoTudo) return;
+  salvandoTudo = true;
+  const botao = document.getElementById('btn-salvar-tudo');
+  const rotulo = botao ? botao.querySelector('span') : null;
+  if (botao) botao.disabled = true;
+  if (rotulo) rotulo.textContent = 'Salvando…';
+
+  try {
+    // 1) Produtos: confirma com a API/banco e atualiza a cópia do navegador
+    if (typeof carregarProdutos === 'function') {
+      await carregarProdutos();
+    }
+
+    // 2) Dados locais (categorias, funcionários, contas, vales...): regrava tudo
+    const chaves = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sv_') && k !== 'sv_ultimo_salvamento') chaves.push(k);
+    }
+    chaves.forEach(k => localStorage.setItem(k, localStorage.getItem(k)));
+
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    localStorage.setItem('sv_ultimo_salvamento', hora);
+    showToast('Tudo salvo às ' + hora + '.', 'success');
+  } catch (erro) {
+    console.error('Erro ao salvar tudo:', erro);
+    showToast((erro && erro.message) || 'Não foi possível salvar tudo.', 'warn');
+  } finally {
+    if (botao) botao.disabled = false;
+    if (rotulo) rotulo.textContent = 'Salvar tudo';
+    salvandoTudo = false;
+  }
 }

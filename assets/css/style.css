@@ -1022,3 +1022,8 @@ body.mobile-menu-open { overflow: hidden; height: 100vh; }
   .charts-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
   .dashboard-grid { grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr); gap: 18px; }
 }
+
+/* Botão global "Salvar tudo" */
+.btn-save-all { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn-save-all:disabled { opacity: .7; cursor: wait; }
+@media (max-width: 640px) { .btn-save-all span { display: none; } .btn-save-all { padding: 8px 10px; } }
