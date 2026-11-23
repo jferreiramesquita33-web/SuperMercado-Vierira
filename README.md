@@ -21,3 +21,9 @@ Esta correção devolve HTTP 503 para falhas de conexão com o banco, apresenta 
 A página de Produtos também mostra o menu e o aviso **Carregando produtos…** antes de aguardar a API. A consulta tem limite de 15 segundos; se não terminar, a tela apresenta uma mensagem de demora e permite tentar novamente, em vez de permanecer apenas com o fundo escuro.
 
 Referência: https://supabase.com/docs/guides/platform/free-project-pausing
+
+### Edição e exclusão de produtos
+
+No Render, defina `VIERA_GERENTE_EMAIL` com o endereço do gerente autorizado em `public.vieira_gerentes`. Mantenha a URL do Supabase e sua chave publicável em `SUPABASE_URL` e `SUPABASE_KEY`. O projeto usa a função `public.vieira_e_gerente()` e as políticas de edição e exclusão da tabela `produtos`.
+
+Ao editar, marcar uma compra ou excluir, o sistema pede confirmação por e-mail. Copie o link do botão da mensagem para o formulário de Produtos ou use o código, se a mensagem incluir um. A operação continua após a confirmação. A sessão de edição dura até uma hora e termina ao sair do sistema.

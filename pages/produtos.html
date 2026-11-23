@@ -46,7 +46,29 @@
 </div>
 
 
-<script src="../assets/js/auth.js?v=6"></script>
+<dialog id="acesso-gerente" class="modal" aria-labelledby="titulo-acesso-gerente">
+  <form id="form-acesso-gerente">
+    <div class="modal-header"><h2 class="modal-title" id="titulo-acesso-gerente">Confirmar edição de produtos</h2></div>
+    <div class="form-group">
+      <label for="email-gerente">E-mail do gerente</label>
+      <input id="email-gerente" type="email" autocomplete="email" required>
+    </div>
+    <div class="form-group" id="etapa-confirmacao" hidden>
+      <label for="prova-gerente">Link ou código recebido por e-mail</label>
+      <p class="text-muted">Copie o endereço do botão do e-mail sem abri-lo e cole abaixo. Se recebeu um código, digite-o aqui.</p>
+      <input id="prova-gerente" type="password" autocomplete="one-time-code" maxlength="4096">
+    </div>
+    <p id="aviso-gerente" role="status" aria-live="polite"></p>
+    <div class="modal-footer">
+      <button id="cancelar-gerente" class="btn btn-secondary" type="button">Cancelar</button>
+      <button id="reenviar-gerente" class="btn btn-secondary" type="button" hidden>Reenviar</button>
+      <button id="confirmar-gerente" class="btn btn-primary" type="submit">Enviar acesso</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="../assets/js/auth.js?v=7"></script>
+<script src="../assets/js/gerente-produtos.js?v=1"></script>
 <script src="../assets/js/storage.js?v=8"></script>
 <script src="../assets/js/app.js?v=6"></script>
 
@@ -112,7 +134,7 @@ async function criarProduto(dados) {
 
 async function atualizarProduto(id, dados) {
 
-  const resposta = await fetch(`/api/produtos/${id}`, {
+  const resposta = await alterarComoGerente(`/api/produtos/${id}`, {
     method: "PUT",
 
     headers: {
@@ -138,7 +160,7 @@ async function atualizarProduto(id, dados) {
 
 async function removerProduto(id) {
 
-  const resposta = await fetch(`/api/produtos/${id}`, {
+  const resposta = await alterarComoGerente(`/api/produtos/${id}`, {
     method: "DELETE"
   });
 

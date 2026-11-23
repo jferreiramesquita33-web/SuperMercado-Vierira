@@ -3,6 +3,7 @@ require("dotenv").config({ quiet: true });
 const express = require("express");
 const path = require("path");
 const supabase = require("./database/db");
+const { rotas: rotasGerente, exigirGerente } = require('./gerente');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +21,7 @@ function responderErroBanco(res, error, mensagem) {
 }
 
 app.use(express.json());
+app.use('/api/gerente', rotasGerente);
 
 // Frontend
 const frontend = path.join(__dirname, '..');
@@ -138,15 +140,17 @@ app.post("/api/produtos", validateProduct, async (req, res) => {
 // EDITAR PRODUTO
 // =========================
 
-app.put("/api/produtos/:id", validateProduct, async (req, res) => {
+function validarIdProduto(req, res, next) {
   const id = Number(req.params.id);
-
   if (!Number.isSafeInteger(id) || id <= 0) {
-    return res.status(400).json({
-      erro: "ID do produto inválido"
-    });
+    return res.status(400).json({ erro: "ID do produto inválido" });
   }
+  res.locals.idProduto = id;
+  next();
+}
 
+app.put("/api/produtos/:id", validateProduct, validarIdProduto, exigirGerente, async (req, res) => {
+  const id = res.locals.idProduto;
   const {
     nome,
     preco,
@@ -164,7 +168,7 @@ app.put("/api/produtos/:id", validateProduct, async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await res.locals.bancoGerente
       .from("produtos")
       .update({
         nome: nome.trim(),
@@ -202,17 +206,11 @@ app.put("/api/produtos/:id", validateProduct, async (req, res) => {
 // EXCLUIR PRODUTO
 // =========================
 
-app.delete("/api/produtos/:id", async (req, res) => {
-  const id = Number(req.params.id);
-
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    return res.status(400).json({
-      erro: "ID do produto inválido"
-    });
-  }
+app.delete("/api/produtos/:id", validarIdProduto, exigirGerente, async (req, res) => {
+  const id = res.locals.idProduto;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await res.locals.bancoGerente
       .from("produtos")
       .delete()
       .eq("id", id)

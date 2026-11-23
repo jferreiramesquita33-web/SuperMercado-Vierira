@@ -12,10 +12,13 @@ function checkAuth() {
 }
 
 function logout() {
-  const finishLogout = () => {
+  const finishLogout = async () => {
     localStorage.removeItem('sv_logged');
     localStorage.removeItem('sv_user_type');
     localStorage.removeItem('sv_user_name');
+    try {
+      await fetch('/api/gerente/sair', { method: 'POST', keepalive: true, signal: AbortSignal.timeout(2500) });
+    } catch { /* A sessão do servidor também expira automaticamente. */ }
     window.location.href = '../index.html';
   };
 

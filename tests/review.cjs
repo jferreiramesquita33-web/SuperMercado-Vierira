@@ -36,6 +36,35 @@ const dbPath = require.resolve('../backend/database/db');
 require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: { from() {
   return { select() { return this; }, order: async () => databaseError ? ({ error: databaseError }) : ({ data: [] }), insert() { return this; }, update() { return this; }, delete() { return this; }, eq() { return this; }, single: async () => databaseError ? ({ error: databaseError }) : missing ? ({error:{code:'PGRST116'}}) : ({data:{id:1,nome:'Produto'}}) };
 } } };
+const clientePath = require.resolve('../backend/database/cliente');
+process.env.SUPABASE_URL = 'https://viera.example';
+process.env.VIERA_GERENTE_EMAIL = 'gerente@example.test';
+let ultimoEnvio;
+let ultimaProva;
+let alteracoesAutorizadas = 0;
+require.cache[clientePath] = { id: clientePath, filename: clientePath, loaded: true, exports(token) {
+  if (!token) return { auth: {
+    async signInWithOtp(opcoes) { ultimoEnvio = opcoes; return { error: null }; },
+    async verifyOtp(prova) {
+      ultimaProva = prova;
+      if (prova.token === '000000') return { error: { status: 403 } };
+      return { data: { user: { email: 'gerente@example.test', email_confirmed_at: '2026-01-01' }, session: { access_token: 'sessao-teste', expires_in: 3600 } } };
+    }
+  } };
+  return {
+    async rpc(nome) {
+      assert.equal(nome, 'vieira_e_gerente');
+      if (token === 'expirada') return { error: { code: 'PGRST303' }, status: 401 };
+      return { data: token === 'sessao-teste', status: 200 };
+    },
+    from(tabela) {
+      assert.equal(token, 'sessao-teste');
+      assert.equal(tabela, 'produtos');
+      alteracoesAutorizadas++;
+      return require.cache[dbPath].exports.from(tabela);
+    }
+  };
+} };
 const app = require('../backend/server');
 
 function mountProductPage(loadProducts) {
@@ -61,7 +90,7 @@ function mountProductPage(loadProducts) {
   const server = app.listen(0, '127.0.0.1');
   await new Promise(r => server.once('listening', r));
   const origin = 'http://127.0.0.1:' + server.address().port;
-  const request = (url, method='GET', body) => fetch(origin + url, {method, headers: {'Content-Type':'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)});
+  const request = (url, method='GET', body, headers={}) => fetch(origin + url, {method, headers: {'Content-Type':'application/json', ...headers}, body: body === undefined ? undefined : JSON.stringify(body)});
   try {
     assert.equal((await request('/')).status, 200);
     assert.equal((await request('/api/produtos')).status, 200);
@@ -133,9 +162,54 @@ function mountProductPage(loadProducts) {
     assert.equal(retryPage.appElement.attributes['aria-busy'], 'false');
     assert.equal((await request('/api/produtos/0','PUT',product)).status,400);
     assert.equal((await request('/api/produtos/-1','DELETE')).status,400);
+    const negado = await request('/api/produtos/1','PUT',product);
+    assert.equal(negado.status, 401);
+    assert.equal((await negado.json()).codigo, 'GERENTE_NECESSARIO');
+    assert.equal((await request('/api/produtos/1','DELETE')).status, 401);
+    assert.equal((await request('/api/produtos/1','PUT', product, {Authorization:'Bearer expirada'})).status, 401);
+    assert.equal((await request('/api/produtos/1','DELETE', undefined, {Authorization:'Bearer sem-perfil'})).status, 403);
+    assert.equal(alteracoesAutorizadas, 0);
+    assert.equal((await request('/api/gerente/enviar','POST',{email:'outra@example.test'})).status, 403);
+    assert.equal(ultimoEnvio, undefined);
+    const email = 'gerente@example.test';
+    assert.equal((await request('/api/gerente/enviar','POST',{email:email.toUpperCase()})).status, 204);
+    assert.deepEqual(ultimoEnvio, {email});
+    const verificar = comprovante => request('/api/gerente/confirmar','POST',{email,comprovante});
+    assert.equal((await verificar('https://outro.example/auth/v1/verify?type=signup&token=teste')).status, 400);
+    assert.equal((await verificar('000000')).status, 401);
+    assert.equal((await verificar('123456')).status, 204);
+    assert.deepEqual(ultimaProva, {email,token:'123456',type:'email'});
+    const confirmado = await verificar('https://viera.example/auth/v1/verify?type=signup&token=hash-de-teste');
+    assert.equal(confirmado.status, 204);
+    assert.deepEqual(ultimaProva,{type:'signup',token_hash:'hash-de-teste'});
+    const cookie = confirmado.headers.get('set-cookie');
+    assert.match(cookie, /HttpOnly/);
+    assert.match(cookie, /SameSite=Strict/);
+    assert.match(cookie, /Path=\/api/);
+    const sessao = {Cookie:cookie.split(';')[0]};
+    assert.equal((await request('/api/produtos/1','PUT',product,sessao)).status,200);
+    assert.equal((await request('/api/produtos/1','DELETE',undefined,sessao)).status,200);
+    assert.equal(alteracoesAutorizadas, 2);
     missing = true;
-    assert.equal((await request('/api/produtos/123','PUT',product)).status,404);
-    assert.equal((await request('/api/produtos/123','DELETE')).status,404);
+    assert.equal((await request('/api/produtos/123','PUT',product,sessao)).status,404);
+    assert.equal((await request('/api/produtos/123','DELETE',undefined,sessao)).status,404);
+    const saiu = await request('/api/gerente/sair','POST',undefined,sessao);
+    assert.equal(saiu.status,204);
+    assert.match(saiu.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/);
+    const tentativas = [];
+    const navegador = vm.createContext({ fetch: async (url, opcoes) => {
+      tentativas.push([url,opcoes]);
+      return tentativas.length === 1 ? Response.json({codigo:'GERENTE_NECESSARIO'},{status:401}) : Response.json({sucesso:true});
+    } });
+    vm.runInContext(fs.readFileSync(path.join(root,'assets/js/gerente-produtos.js'),'utf8'), navegador);
+    vm.runInContext('confirmarGerente = async () => true', navegador);
+    assert.equal((await vm.runInContext("alterarComoGerente('/api/produtos/1',{method:'PUT',body:'dados'})", navegador)).status,200);
+    assert.equal(tentativas.length,2);
+    assert.deepEqual(tentativas[0],tentativas[1]);
+    tentativas.length = 0;
+    vm.runInContext('confirmarGerente = async () => false', navegador);
+    await assert.rejects(vm.runInContext("alterarComoGerente('/api/produtos/1',{method:'DELETE'})", navegador), /cancelada/);
+    assert.equal(tentativas.length,1);
     assert.equal((await fetch(origin+'/api/produtos',{method:'POST',headers:{'Content-Type':'application/json'},body:'{'})).status,400);
     console.log('PASS: syntax, local references, storage, product validation, missing records, invalid JSON, private file protection, unavailable database, recovery, preserved cache, immediate loading view, timeout and retry. Database mocked; no production records changed.');
   } finally { server.closeAllConnections(); server.close(); }

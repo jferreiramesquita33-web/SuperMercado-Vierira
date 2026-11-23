@@ -605,6 +605,10 @@ tbody td { padding: 10px 14px; }
   box-shadow: 0 24px 60px rgba(0,0,0,0.5);
 }
 .modal-overlay.open .modal { transform: translateY(0) scale(1); }
+dialog#acesso-gerente { margin: auto; color: var(--text); transform: none; width: min(420px, 92vw); }
+dialog#acesso-gerente::backdrop { background: rgba(10,14,22,.7); }
+#acesso-gerente [hidden] { display: none; }
+#etapa-confirmacao p { margin: 6px 0 10px; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 .modal-title { font-family: var(--font-head); font-size: 1.05rem; font-weight: 700; }
 .modal-close {
