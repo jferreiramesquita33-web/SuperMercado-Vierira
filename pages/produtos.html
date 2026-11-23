@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 
   <title>Produtos - Supermercado Vieira</title>
 
@@ -12,7 +12,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=7">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -31,18 +31,25 @@
   </main>
 </div>
 
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal" style="max-width:520px">
+<div class="modal-overlay" id="modal-overlay" inert>
+  <form id="form-produto" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"
+        onsubmit="event.preventDefault(); salvar()">
 
     <div class="modal-header">
       <span class="modal-title" id="modal-title">Novo Produto</span>
 
-      <button class="modal-close" onclick="closeModal()">×</button>
+      <button type="button" class="modal-close" aria-label="Fechar formulário" onclick="closeModal()">×</button>
     </div>
 
-    <div id="modal-body"></div>
+    <div id="campos-produto">
+      <fieldset id="modal-body" aria-label="Dados do produto"></fieldset>
+    </div>
 
-  </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="salvar-produto" type="submit">Salvar produto</button>
+    </div>
+  </form>
 </div>
 
 
@@ -704,6 +711,7 @@ function setFilter(filter) {
 function openModal(id = null) {
 
   editId = id;
+  document.getElementById("salvar-produto").textContent = id ? "Salvar alterações" : "Salvar produto";
 
   const produto = id
 
@@ -730,10 +738,10 @@ function openModal(id = null) {
 
     <div class="form-group">
 
-      <label>Nome do produto *</label>
+      <label for="f-nome">Nome do produto *</label>
 
       <input
-        id="f-nome"
+        id="f-nome" required
         value="${escapeHTML(p.nome || "")}"
         placeholder="Ex: Arroz 5kg"
       >
@@ -743,10 +751,10 @@ function openModal(id = null) {
 
     <div class="form-group">
 
-      <label>Preço *</label>
+      <label for="f-preco">Preço *</label>
 
       <input
-        id="f-preco"
+        id="f-preco" required
         type="number"
         min="0"
         step="0.01"
@@ -761,7 +769,7 @@ function openModal(id = null) {
 
       <div class="form-group">
 
-        <label>Categoria</label>
+        <label for="f-categoria">Categoria</label>
 
         <input
           id="f-categoria"
@@ -774,7 +782,7 @@ function openModal(id = null) {
 
       <div class="form-group">
 
-        <label>Unidade</label>
+        <label for="f-unidade">Unidade</label>
 
         <input
           id="f-unidade"
@@ -791,10 +799,10 @@ function openModal(id = null) {
 
       <div class="form-group">
 
-        <label>Estoque atual *</label>
+        <label for="f-estoque">Estoque atual *</label>
 
         <input
-          id="f-estoque"
+          id="f-estoque" required
           type="number"
           min="0"
           step="1"
@@ -806,10 +814,10 @@ function openModal(id = null) {
 
       <div class="form-group">
 
-        <label>Estoque mínimo *</label>
+        <label for="f-minimo">Estoque mínimo *</label>
 
         <input
-          id="f-minimo"
+          id="f-minimo" required
           type="number"
           min="0"
           step="1"
@@ -845,31 +853,15 @@ function openModal(id = null) {
     </div>
 
 
-    <div class="modal-footer">
-
-      <button
-        class="btn btn-secondary"
-        onclick="closeModal()"
-      >
-        Cancelar
-      </button>
-
-
-      <button
-        class="btn btn-primary"
-        onclick="salvar()"
-      >
-        Salvar
-      </button>
-
-    </div>
-
   `;
 
 
-  document
-    .getElementById("modal-overlay")
-    .classList.add("open");
+  const overlay = document.getElementById("modal-overlay");
+  document.getElementById("app").inert = true;
+  overlay.inert = false;
+  overlay.classList.add("open");
+  document.getElementById("campos-produto").scrollTop = 0;
+  document.getElementById("f-nome").focus({ preventScroll: true });
 }
 
 
@@ -953,9 +945,15 @@ async function salvar() {
   };
 
 
+  const form = document.getElementById("form-produto");
+  const botao = document.getElementById("salvar-produto");
+  const rotulo = botao.textContent;
+  const controles = form.querySelectorAll("fieldset, button");
+  salvando = true;
+  form.setAttribute("aria-busy", "true");
+  controles.forEach(controle => { controle.disabled = true; });
+  botao.textContent = "Salvando…";
   try {
-
-    salvando = true;
     if (editId) {
 
       await atualizarProduto(
@@ -980,10 +978,6 @@ async function salvar() {
     }
 
 
-    closeModal();
-
-    await carregarPaginaProdutos();
-
   } catch (erro) {
 
     console.error(erro);
@@ -994,8 +988,16 @@ async function salvar() {
       "warn"
     );
 
-  } finally { salvando = false; }
+    return;
+  } finally {
+    salvando = false;
+    form.removeAttribute("aria-busy");
+    controles.forEach(controle => { controle.disabled = false; });
+    botao.textContent = rotulo;
+  }
 
+  closeModal();
+  await carregarPaginaProdutos();
 }
 
 
@@ -1118,10 +1120,11 @@ function excluir(id) {
 // =====================================================
 
 function closeModal() {
-
-  document
-    .getElementById("modal-overlay")
-    .classList.remove("open");
+  if (salvando) return;
+  const overlay = document.getElementById("modal-overlay");
+  overlay.inert = true;
+  overlay.classList.remove("open");
+  document.getElementById("app").inert = false;
 
   editId = null;
 }
