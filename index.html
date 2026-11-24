@@ -58,95 +58,77 @@
     <div class="login-card">
       <div id="login-error" class="alert alert-error" style="display:none"></div>
 
-      <div id="form-admin">
-        <h2>Acesso do Gerente</h2>
-        <p class="login-subtitle">Entre com suas credenciais para gerenciar o sistema</p>
+      <form id="form-admin">
+        <h2>Acesso do gerente</h2>
+        <p class="login-subtitle" id="acesso-ajuda" role="status">Entre com o e-mail autorizado para esta loja.</p>
         <div class="form-group">
-          <label for="admin-username">Usuário</label>
-          <input type="text" id="admin-username" placeholder="Digite seu usuário" autocomplete="username">
+          <label for="email-gerente">E-mail do gerente</label>
+          <input id="email-gerente" type="email" autocomplete="email" required>
         </div>
-        <div class="form-group">
-          <label for="admin-password">Senha</label>
-          <div class="input-eye">
-            <input type="password" id="admin-password" placeholder="Digite sua senha" autocomplete="current-password">
-
-            <button type="button" class="eye-btn" onclick="togglePassword('admin-password', this)" aria-label="Mostrar senha">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-          </div>
+        <div class="form-group" id="etapa-prova" hidden>
+          <label for="prova-gerente">Código ou link de acesso</label>
+          <input id="prova-gerente" type="password" autocomplete="one-time-code" maxlength="4096">
         </div>
-        <button class="btn-login" onclick="loginAdmin()" id="login-btn-admin">
-          <span id="login-btn-admin-text">Entrar no sistema</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
-      </div>
+        <button class="btn-login" type="submit" id="login-btn-admin">Enviar acesso por e-mail</button>
+        <button class="btn btn-secondary" id="reiniciar-acesso" type="button" hidden>Trocar e-mail ou reenviar</button>
+      </form>
     </div>
 
     <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
   </div>
 
-  <script src="assets/js/auth.js?v=5"></script>
-  <script src="assets/js/app.js?v=8"></script>
+  <script src="assets/js/auth.js?v=12"></script>
+  <script src="assets/js/app.js?v=12"></script>
   <script>
     initTheme();
     applySiteImage();
 
-    if (localStorage.getItem('sv_logged') === 'true') {
-      window.location.href = 'pages/dashboard.html';
-    }
-
-    function showError(msg) {
-      const err = document.getElementById('login-error');
-      err.textContent = msg;
-      err.style.display = 'flex';
-      err.style.animation = 'none';
-      err.offsetHeight;
-      err.style.animation = '';
-      setTimeout(() => err.style.display = 'none', 3500);
-    }
-
-    let loginInProgress = false;
-    window.addEventListener('pageshow', event => {
-      if (!event.persisted) return;
-      loginInProgress = false;
-      document.getElementById('login-btn-admin').disabled = false;
-    });
-
-    function doLogin(username, password, btnId) {
-      if (loginInProgress) return;
-      const user = SV_USERS.find(u => u.username === username && u.password === password);
-      if (user) {
-        loginInProgress = true;
-        document.getElementById(btnId || 'login-btn-admin').disabled = true;
-        localStorage.setItem('sv_logged', 'true');
-        localStorage.setItem('sv_user_type', user.type);
-        localStorage.setItem('sv_user_name', user.name);
-        if (window.SVLoginTransition) window.SVLoginTransition.start();
-        else window.location.href = 'pages/dashboard.html';
-      } else {
-        showError('Usuário ou senha incorretos.');
-      }
-    }
-
-    function loginAdmin() {
-      const u = document.getElementById('admin-username').value.trim();
-      const p = document.getElementById('admin-password').value;
-      if (!u || !p) { showError('Preencha Usuário e senha.'); return; }
-      doLogin(u, p, 'login-btn-admin');
-    }
-
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Enter') loginAdmin();
-    });
-
-    function togglePassword(id, btn) {
-      const inp = document.getElementById(id);
-      const showing = inp.type === 'text';
-      inp.type = showing ? 'password' : 'text';
-      btn.innerHTML = showing
-        ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
-        : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
-    }
+    fetch('/api/gerente/sessao', { cache:'no-store' }).then(r => {
+      if (r.ok) location.replace('pages/dashboard.html');
+    }).catch(() => {});
+    const form = document.getElementById('form-admin');
+    const email = document.getElementById('email-gerente');
+    const etapa = document.getElementById('etapa-prova');
+    const prova = document.getElementById('prova-gerente');
+    const botao = document.getElementById('login-btn-admin');
+    const trocar = document.getElementById('reiniciar-acesso');
+    const ajuda = document.getElementById('acesso-ajuda');
+    trocar.onclick = () => {
+      etapa.hidden = trocar.hidden = true;
+      prova.required = email.readOnly = false;
+      prova.value = '';
+      botao.textContent = 'Enviar acesso por e-mail';
+      ajuda.textContent = 'Entre com o e-mail autorizado para esta loja.';
+      email.focus();
+    };
+    form.onsubmit = async event => {
+      event.preventDefault();
+      if (botao.disabled) return;
+      botao.disabled = trocar.disabled = true;
+      const enviando = etapa.hidden;
+      let entrou = false;
+      try {
+        const res = await fetch('/api/gerente/' + (enviando ? 'enviar' : 'confirmar'), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ email:email.value.trim(), comprovante:prova.value })
+        });
+        if (!res.ok) throw new Error((await res.json()).erro || 'Tente novamente.');
+        if (enviando) {
+          etapa.hidden = trocar.hidden = false;
+          email.readOnly = prova.required = true;
+          ajuda.textContent = 'Digite o código recebido ou copie o endereço do botão do e-mail e cole abaixo, sem abrir o link.';
+          botao.textContent = 'Confirmar e entrar';
+          prova.focus();
+        } else {
+          entrou = true;
+          prova.value = '';
+          localStorage.setItem('sv_logged','true'); // Somente para a animação de entrada.
+          if (window.SVLoginTransition) window.SVLoginTransition.start();
+          else location.replace('pages/dashboard.html');
+        }
+      } catch (err) { ajuda.textContent = err.message || 'Confira a conexão e tente novamente.'; }
+      finally { botao.disabled = entrou; trocar.disabled = false; }
+    };
   </script>
 </body>
 </html>

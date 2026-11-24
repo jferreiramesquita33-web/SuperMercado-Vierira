@@ -5,7 +5,7 @@
   <title>Relatórios — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <style>
     .report-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
@@ -39,11 +39,10 @@
 </head>
 <body>
 <div id="app"></div>
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
 initBrightness();
 let activeTab='consolidado', filterPeriod=currentMonth(), filterCat='', filterStatus='', filterFunc='';
 
@@ -131,24 +130,24 @@ function render(){
   else if(activeTab==='desp-cat'){
     let rows=contas.filter(c=>c.status==='paga'||c.status==='paga após vencimento');
     if(filterPeriod)rows=rows.filter(c=>c.dataPagamento&&c.dataPagamento.startsWith(filterPeriod));
-    const catMap={};
+    const catMap=Object.create(null);
     rows.forEach(c=>{const k=c.categoria||'Sem categoria';catMap[k]=(catMap[k]||0)+Number(c.valor||0);});
     const total=Object.values(catMap).reduce((s,v)=>s+v,0);
     content=`<div class="table-wrap"><table>
       <thead><tr><th>Categoria</th><th>Total</th><th>%</th></tr></thead>
-      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="font-mono text-red">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
+      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${escapeHTML(k)}</td><td class="font-mono text-red">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
     </table></div>
     <div class="report-total">Total: <span class="text-red">${fmtMoney(total)}</span></div>`;
   }
   else if(activeTab==='rec-cat'){
     let rows=receber.filter(c=>c.status==='recebida'||c.status==='recebida em atraso');
     if(filterPeriod)rows=rows.filter(c=>c.dataRecebimento&&c.dataRecebimento.startsWith(filterPeriod));
-    const catMap={};
+    const catMap=Object.create(null);
     rows.forEach(c=>{const k=c.categoria||'Sem categoria';catMap[k]=(catMap[k]||0)+Number(c.valor||0);});
     const total=Object.values(catMap).reduce((s,v)=>s+v,0);
     content=`<div class="table-wrap"><table>
       <thead><tr><th>Categoria</th><th>Total</th><th>%</th></tr></thead>
-      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td class="font-mono text-green">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
+      <tbody>${Object.entries(catMap).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${escapeHTML(k)}</td><td class="font-mono text-green">${fmtMoney(v)}</td><td class="text-muted">${total>0?(v/total*100).toFixed(1)+'%':'0%'}</td></tr>`).join('')}</tbody>
     </table></div>
     <div class="report-total">Total: <span class="text-green">${fmtMoney(total)}</span></div>`;
   }
@@ -156,13 +155,13 @@ function render(){
     let rows=vales;
     if(filterPeriod)rows=rows.filter(v=>v.data&&v.data.startsWith(filterPeriod));
     if(filterFunc)rows=rows.filter(v=>v.funcionarioId===filterFunc);
-    const funcMap={};
+    const funcMap=Object.create(null);
     rows.forEach(v=>{const f=funcs.find(x=>x.id===v.funcionarioId);const k=f?f.nome:'Desconhecido';funcMap[k]=(funcMap[k]||0)+Number(v.valor||0);});
     const total=rows.reduce((s,v)=>s+Number(v.valor||0),0);
     content=`
     <div class="table-wrap"><table>
       <thead><tr><th>Funcionário</th><th>Data</th><th>Valor</th><th>Motivo</th></tr></thead>
-      <tbody>${rows.map(v=>{const f=funcs.find(x=>x.id===v.funcionarioId);return `<tr><td>${f?f.nome:'—'}</td><td>${fmtDate(v.data)}</td><td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td><td>${escapeHTML(v.motivo||'—')}</td></tr>`;}).join('')}</tbody>
+      <tbody>${rows.map(v=>{const f=funcs.find(x=>x.id===v.funcionarioId);return `<tr><td>${escapeHTML(f?.nome || '—')}</td><td>${fmtDate(v.data)}</td><td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td><td>${escapeHTML(v.motivo||'—')}</td></tr>`;}).join('')}</tbody>
     </table></div>
     <div class="report-total">Total de vales: <span style="color:var(--purple)">${fmtMoney(total)}</span></div>`;
   }
@@ -221,7 +220,7 @@ function gerarPDF(){
   window.print();
 }
 
-render();
+iniciarPagina(render);
 </script>
 </body>
 </html>

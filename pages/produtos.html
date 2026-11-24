@@ -12,7 +12,7 @@
     rel="stylesheet"
   >
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=7">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -74,14 +74,13 @@
   </form>
 </dialog>
 
-<script src="../assets/js/auth.js?v=7"></script>
+<script src="../assets/js/auth.js?v=12"></script>
 <script src="../assets/js/gerente-produtos.js?v=1"></script>
-<script src="../assets/js/storage.js?v=8"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 
 <script>
 
-checkAuth();
 initBrightness();
 
 let editId = null;
@@ -95,95 +94,25 @@ let carregandoProdutos = false;
 // API
 // =====================================================
 
-async function carregarProdutosAPI() {
-
-  const resposta = await fetch("/api/produtos");
-
-  const resultado = await resposta.json();
-
-  if (!resposta.ok) {
-    throw new Error(
-      resultado.detalhes ||
-      resultado.erro ||
-      "Erro ao buscar produtos"
-    );
-  }
-
-  return resultado;
-}
-
-
-async function criarProduto(dados) {
-
-  const resposta = await fetch("/api/produtos", {
-    method: "POST",
-
-    headers: {
-      "Content-Type": "application/json"
-    },
-
-    body: JSON.stringify(dados)
+let chaveCadastro, versaoFormulario;
+async function gravarProduto(url, metodo, dados, headers) {
+  const resposta = await alterarComoGerente(url, {
+    method: metodo, headers: { 'Content-Type': 'application/json', ...headers },
+    body: dados ? JSON.stringify(dados) : undefined
   });
-
   const resultado = await resposta.json();
-
-  if (!resposta.ok) {
-    throw new Error(
-      resultado.detalhes ||
-      resultado.erro ||
-      "Erro ao cadastrar produto"
-    );
-  }
-
+  if (!resposta.ok || !resultado.produto?.id) throw new Error(resultado.erro || 'O banco não confirmou a alteração.');
   return resultado.produto;
 }
-
-
-async function atualizarProduto(id, dados) {
-
-  const resposta = await alterarComoGerente(`/api/produtos/${id}`, {
-    method: "PUT",
-
-    headers: {
-      "Content-Type": "application/json"
-    },
-
-    body: JSON.stringify(dados)
-  });
-
-  const resultado = await resposta.json();
-
-  if (!resposta.ok) {
-    throw new Error(
-      resultado.detalhes ||
-      resultado.erro ||
-      "Erro ao editar produto"
-    );
-  }
-
-  return resultado.produto;
+function criarProduto(dados) {
+  return gravarProduto('/api/produtos','POST', dados, { 'Idempotency-Key': chaveCadastro });
 }
-
-
-async function removerProduto(id) {
-
-  const resposta = await alterarComoGerente(`/api/produtos/${id}`, {
-    method: "DELETE"
-  });
-
-  const resultado = await resposta.json();
-
-  if (!resposta.ok) {
-    throw new Error(
-      resultado.detalhes ||
-      resultado.erro ||
-      "Erro ao excluir produto"
-    );
-  }
-
-  return resultado.produto;
+function atualizarProduto(id, dados, versao = versaoFormulario) {
+  return gravarProduto('/api/produtos/' + id,'PUT',dados,{ 'If-Match': String(versao) });
 }
-
+function removerProduto(id, versao) {
+  return gravarProduto('/api/produtos/' + id,'DELETE',null,{ 'If-Match': String(versao) });
+}
 
 // =====================================================
 // REGRAS
@@ -723,6 +652,8 @@ function openModal(id = null) {
 
 
   const p = produto || {};
+  versaoFormulario = p.versao;
+  chaveCadastro = id ? null : crypto.randomUUID();
 
 
   document.getElementById(
@@ -1053,7 +984,7 @@ async function toggleCompra(id) {
         minimo: Number(produto.minimo || 0),
         unidade: produto.unidade || "un",
         comprar: novoComprar
-      }
+      }, produto.versao
     );
 
 
@@ -1080,6 +1011,7 @@ async function toggleCompra(id) {
 // =====================================================
 
 function excluir(id) {
+  const versao = produtosCache.find(p => Number(p.id) === Number(id))?.versao;
 
   showConfirm(
     "Tem certeza que deseja excluir este produto?",
@@ -1088,7 +1020,7 @@ function excluir(id) {
 
       try {
 
-        await removerProduto(id);
+        await removerProduto(id, versao);
 
         showToast(
           "Produto excluído com sucesso!",
@@ -1145,7 +1077,7 @@ document
 // INÍCIO
 // =====================================================
 
-carregarPaginaProdutos();
+iniciarPagina(carregarPaginaProdutos);
 
 </script>
 

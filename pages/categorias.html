@@ -5,7 +5,7 @@
   <title>Categorias — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -21,13 +21,11 @@
     <div id="modal-body"></div>
   </div>
 </div>
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
 initBrightness();
-initSeedData();
 let editId = null;
 
 function render() {
@@ -87,7 +85,9 @@ function render() {
   </div>`;
 }
 
+let idCadastro;
 function openModal(id=null) {
+  idCadastro = id || SV.newId();
   editId = id;
   let c = id ? SV.get('categorias').find(x=>x.id===id) : {};
   if (!c) c = {};
@@ -107,20 +107,17 @@ function openModal(id=null) {
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function salvar() {
+async function salvar() {
   const nome = document.getElementById('f-nome').value.trim();
   if (!nome) { alert('Informe o nome'); return; }
-  const obj = { id: editId||SV.newId(), nome, tipo: document.getElementById('f-tipo').value };
-  let list = SV.get('categorias');
-  if (editId) list = list.map(x=>x.id===editId?obj:x);
-  else list.push(obj);
-  SV.set('categorias', list);
+  const obj = { id: idCadastro, nome, tipo: document.getElementById('f-tipo').value };
+  if (!await SV.alterar('categorias', obj)) return;
   closeModal(); render();
 }
 
 function excluir(id) {
-  showConfirm('Tem certeza que deseja excluir esta categoria?', () => {
-    SV.set('categorias', SV.get('categorias').filter(x=>x.id!==id));
+  showConfirm('Tem certeza que deseja excluir esta categoria?', async () => {
+    if (!await SV.alterar('categorias', {id}, true)) return;
     showToast('Categoria excluída', 'success');
     render();
   });
@@ -128,7 +125,7 @@ function excluir(id) {
 
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editId=null; }
 document.getElementById('modal-overlay').addEventListener('click', function(e){if(e.target===this)closeModal();});
-render();
+iniciarPagina(render);
 </script>
 </body>
 </html>

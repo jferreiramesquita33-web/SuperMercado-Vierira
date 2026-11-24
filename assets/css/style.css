@@ -1027,3 +1027,21 @@ body.mobile-menu-open { overflow: hidden; height: 100vh; }
 .btn-save-all { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .btn-save-all:disabled { opacity: .7; cursor: wait; }
 @media (max-width: 640px) { .btn-save-all span { display: none; } .btn-save-all { padding: 8px 10px; } }
+
+.historico { padding: 12px 16px 18px; }
+.historico-legenda { display:flex; align-items:center; gap:6px; font-size:.875rem; }
+.historico-legenda span { height:.7rem; width:.7rem; border-radius:2px; }
+.historico-legenda .leg-receber { margin-left:12px; }
+.leg-pagar,.barra-pagar { background:#d44e64; }
+.leg-receber,.barra-receber { background:#478aeb; }
+.historico-barras { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); height:130px; align-items:end;
+  border-bottom:1px solid var(--border); margin:16px 0 32px; background:repeating-linear-gradient(to top,transparent 0 31px,var(--border) 31px 32px); }
+.historico-mes { height:100%; position:relative; display:flex; align-items:end; justify-content:center; gap:3px; }
+.historico-mes i { width:24%; max-width:22px; border-radius:3px 3px 0 0; }
+.historico-mes small { position:absolute; top:100%; margin-top:5px; white-space:nowrap; font-size:.75rem; }
+.historico summary { cursor:pointer; padding:6px 0; }
+.historico caption { text-align:left; }
+.historico table { width:100%; font-variant-numeric:tabular-nums; }
+.historico p,.historico-ajuda { color:var(--text-muted); font-size:.875rem; }
+.historico-filtro { padding:0 16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.historico-ajuda { padding:6px 16px; }

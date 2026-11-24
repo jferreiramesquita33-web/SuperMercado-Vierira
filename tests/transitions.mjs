@@ -1,23 +1,15 @@
 // Browser regression checks, with no npm dependencies. Run: node tests/transitions.mjs
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
+import './loja-simulada.cjs';
+import app from '../backend/server.js';
 import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
-import { join, resolve, extname } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const root = resolve(import.meta.dirname, '..');
-const server = createServer(async (request, response) => {
-  try {
-    if (request.url === '/api/produtos') { response.setHeader('Content-Type', 'application/json'); response.end('[]'); return; }
-    const path = resolve(root, '.' + new URL(request.url, 'http://localhost').pathname);
-    if (!path.startsWith(root + '/'.replace('/', process.platform === 'win32' ? '\\' : '/'))) throw Error('Outside workspace');
-    response.setHeader('Content-Type', ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml' })[extname(path)] || 'text/plain');
-    response.end(await readFile(path));
-  } catch { response.writeHead(404).end(); }
-});
-await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const server = app.listen(0,'127.0.0.1');
+await new Promise(resolve => server.once('listening', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const profile = await mkdtemp(join(tmpdir(), 'vieira-motion-'));
 const chrome = spawn(process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', [
@@ -65,7 +57,6 @@ try {
   // Isolate presentation from third-party charts and the product backend.
   await cdp('Network.setBlockedURLs', { urls: ['*fonts.googleapis.com*', '*fonts.gstatic.com*', '*cdn.jsdelivr.net*'] });
   await cdp('Page.addScriptToEvaluateOnNewDocument', { source: `
-    window.Chart = class { destroy() {} };
     window.__openingCount = 0;
     window.__loginCovers = [];
     new MutationObserver(records => records.forEach(record => record.addedNodes.forEach(node => {
@@ -135,11 +126,21 @@ try {
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.sv-entry-object')).animationDuration"), '0.25s');
   await until("!document.querySelector('.sv-brand-screen') && !document.body.inert");
   assert.equal(await evaluate('window.__openingCount'), 1);
-  // Invalid and valid credentials still use the existing authentication code.
-  await evaluate("doLogin('invalid','invalid')");
+  async function enviarAcesso() {
+    await evaluate("document.getElementById('email-gerente').value='gerente@example.test';document.getElementById('form-admin').requestSubmit()");
+    await until("!document.getElementById('etapa-prova').hidden");
+  }
+  async function confirmar(codigo) {
+    await evaluate("document.getElementById('prova-gerente').value=" + JSON.stringify(codigo) + ";document.getElementById('form-admin').requestSubmit()");
+  }
+  await enviarAcesso();
+  await confirmar("000000");
+  await until("!document.getElementById('login-btn-admin').disabled");
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
   assert.equal(await evaluate("document.querySelector('.sv-login-overlay')"), null);
-  await evaluate("doLogin('admin','123'); doLogin('admin','123')");
+  await confirmar("123456");
+  await evaluate("document.getElementById('form-admin').requestSubmit()");
+  await until("!!document.querySelector('.sv-login-overlay')");
   assert.equal(await evaluate("document.getElementById('login-btn-admin').disabled"), true);
   assert.equal(await evaluate("document.querySelectorAll('.sv-login-overlay').length"), 1);
   await until("document.querySelector('.sv-login-overlay')?.dataset.phase === 'expand'");
@@ -225,11 +226,14 @@ try {
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.sidebar-brand'),'::after').animationName"), 'none');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
   await evaluate('logout()');
-  await until("location.pathname.endsWith('/index.html') && typeof doLogin === 'function' && !!document.querySelector('.login-card')");
+  await until("location.pathname.endsWith('/index.html') && !!document.getElementById('form-admin')?.onsubmit && !!document.querySelector('.login-card')");
   assert.equal(await evaluate('window.__openingCount'), 0);
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
   // A fresh entry while already signed in should open once at the destination.
   await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+  const sessao = await fetch(origin+'/api/gerente/confirmar',{method:'POST', headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'gerente@example.test',comprovante:'123456'})});
+  const token = sessao.headers.get('set-cookie').split(';')[0].split('=')[1];
+  await cdp('Network.setCookie',{name:'viera_gerente',value:token,url:origin+'/api',path:'/api',httpOnly:true});
   await evaluate("sessionStorage.removeItem('sv_opening_seen'); localStorage.setItem('sv_logged','true'); location.reload()");
   await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.sv-brand-screen')");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.sv-entry-object')).backgroundColor"), 'rgb(243, 245, 249)');
@@ -240,11 +244,11 @@ try {
   assert.equal(await evaluate("document.querySelectorAll('.sv-brand-screen').length"), 1);
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), 'true');
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.sv-brand-exit-disc')).animationName"), 'sv-exit-cover');
-  await until("location.pathname.endsWith('/index.html') && typeof doLogin === 'function' && !!document.querySelector('.login-card')");
+  await until("location.pathname.endsWith('/index.html') && !!document.getElementById('form-admin')?.onsubmit && !!document.querySelector('.login-card')");
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
   assert.equal(await evaluate('window.__openingCount'), 0, 'No second opening after logout');
   await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  await evaluate("doLogin('admin','123')");
+  await enviarAcesso(); await confirmar("123456");
   await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.kpi-card')");
   assert.equal(await evaluate('window.__loginCovers.length'),0);
   assert.equal(await evaluate('document.body.inert'),false);

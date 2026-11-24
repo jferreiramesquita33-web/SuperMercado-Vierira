@@ -5,7 +5,7 @@
   <title>Contas a Pagar — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -24,11 +24,10 @@
   </div>
 </div>
 
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
 initBrightness();
 let editId = null;
 let filterStatus = '', filterCat = '', filterPeriod = '';
@@ -37,8 +36,6 @@ function getCats() { return SV.get('categorias').filter(c=>c.tipo==='saida'); }
 
 function render() {
   let contas = SV.get('contasPagar').map(c => ({...c, status: resolveStatusPagar(c)}));
-  // save resolved statuses back
-  SV.set('contasPagar', contas);
 
   if (filterStatus) contas = contas.filter(c => c.status === filterStatus);
   if (filterCat) contas = contas.filter(c => c.categoria === filterCat);
@@ -108,7 +105,9 @@ function render() {
   </div>`;
 }
 
+let idCadastro;
 function openModal(id = null) {
+  idCadastro = id || SV.newId();
   editId = id;
   const cats = getCats();
   const catOpts = cats.map(c=>`<option value="${escapeHTML(c.nome)}">${escapeHTML(c.nome)}</option>`).join('');
@@ -134,17 +133,17 @@ function openModal(id = null) {
     <div class="form-row">
       <div class="form-group">
         <label>Valor *</label>
-        <input id="f-valor" type="number" step="0.01" value="${c.valor||''}" placeholder="0,00">
+        <input id="f-valor" type="number" step="0.01" value="${escapeHTML(c.valor||'')}" placeholder="0,00">
       </div>
       <div class="form-group">
         <label>Data de Vencimento *</label>
-        <input id="f-venc" type="date" value="${c.dataVencimento||''}">
+        <input id="f-venc" type="date" value="${escapeHTML(c.dataVencimento||'')}">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label>Data de Pagamento</label>
-        <input id="f-pagto" type="date" value="${c.dataPagamento||''}">
+        <input id="f-pagto" type="date" value="${escapeHTML(c.dataPagamento||'')}">
       </div>
       <div class="form-group">
         <label>Status</label>
@@ -163,11 +162,11 @@ function openModal(id = null) {
     <div class="form-row">
       <div class="form-group">
         <label>Arquivo da Conta/Boleto</label>
-        <input type="text" id="f-arq" value="${c.arquivoConta||''}" placeholder="Nome do arquivo (simulação)">
+        <input type="text" id="f-arq" value="${escapeHTML(c.arquivoConta||'')}" placeholder="Nome do arquivo (simulação)">
       </div>
       <div class="form-group">
         <label>Comprovante de Pagamento</label>
-        <input type="text" id="f-comp" value="${c.comprovantePagamento||''}" placeholder="Nome do arquivo (simulação)">
+        <input type="text" id="f-comp" value="${escapeHTML(c.comprovantePagamento||'')}" placeholder="Nome do arquivo (simulação)">
       </div>
     </div>
     <div class="modal-footer">
@@ -179,7 +178,7 @@ function openModal(id = null) {
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function salvar() {
+async function salvar() {
   const desc = document.getElementById('f-desc').value.trim();
   const valor = document.getElementById('f-valor').value;
   if (!Number.isFinite(Number(valor)) || Number(valor) <= 0) { showToast('Informe um valor maior que zero.', 'warn'); return; }
@@ -196,7 +195,7 @@ function salvar() {
   }
 
   const obj = {
-    id: editId || SV.newId(),
+    id: idCadastro,
     descricao: desc,
     categoria: document.getElementById('f-cat').value,
     fornecedor: document.getElementById('f-forn').value,
@@ -209,28 +208,25 @@ function salvar() {
     comprovantePagamento: document.getElementById('f-comp').value,
   };
 
-  let list = SV.get('contasPagar');
-  if (editId) list = list.map(x => x.id === editId ? obj : x);
-  else list.push(obj);
-  SV.set('contasPagar', list);
+  if (!await SV.alterar('contasPagar', obj)) return;
   closeModal();
   render();
 }
 
-function marcarPaga(id) {
+async function marcarPaga(id) {
   let list = SV.get('contasPagar');
   const c = list.find(x=>x.id===id);
   if (!c) return;
   const hoje = todayStr();
   c.dataPagamento = hoje;
   c.status = hoje > c.dataVencimento ? 'paga após vencimento' : 'paga';
-  SV.set('contasPagar', list);
+  if (!await SV.alterar('contasPagar', c)) return;
   render();
 }
 
 function excluir(id) {
-  showConfirm('Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.', () => {
-    SV.set('contasPagar', SV.get('contasPagar').filter(x=>x.id!==id));
+  showConfirm('Tem certeza que deseja excluir esta conta? Esta ação não pode ser desfeita.', async () => {
+    if (!await SV.alterar('contasPagar', {id}, true)) return;
     showToast('Conta excluída com sucesso', 'success');
     render();
   });
@@ -245,7 +241,7 @@ document.getElementById('modal-overlay').addEventListener('click', function(e){
   if (e.target === this) closeModal();
 });
 
-render();
+iniciarPagina(render);
 </script>
 </body>
 </html>
