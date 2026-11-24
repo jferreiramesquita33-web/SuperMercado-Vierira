@@ -6,7 +6,7 @@ Sistema de gestão da loja com interface em português, API Express e banco comp
 
 ## Entrar e salvar
 
-1. Informe o e-mail do gerente cadastrado. Digite o código recebido ou copie o endereço do botão do e-mail e cole no formulário. A sessão dura até uma hora.
+1. Informe o e-mail do gerente cadastrado. Se já recebeu uma mensagem, selecione **Já recebi o e-mail** e informe o código ou o endereço original do botão. O formulário aceita a mensagem mesmo quando o provedor limita novos envios. A sessão dura até uma hora.
 2. Em **Produtos**, preencha o cadastro e clique em **Salvar produto**. A confirmação depende da gravação no banco. Em outro computador ou celular, entre com a conta autorizada e abra Produtos.
 3. Contas, funcionários, categorias e vales são gravados no mesmo banco ao confirmar os formulários. Se duas pessoas editarem o mesmo registro, a versão mais antiga precisa ser recarregada.
 4. Para trazer dados da versão anterior, entre pelo endereço e navegador em que foram cadastrados e clique em **Salvar tudo**. A importação preserva os IDs e os vínculos de vales e pode ser repetida. Produtos antigos que tinham apenas o estoque usam o preço inicial de R$ 0,00 até o gerente informar o valor. Tema, brilho e imagem de preferência são locais.
@@ -26,3 +26,7 @@ A API valida a sessão e usa o token do gerente nas consultas. As políticas por
 Os testes de API usam uma loja em memória com sessões independentes. A suíte `npm run test:browser` verifica as transições com Chromium e também usa essa loja. Defina `CHROME_PATH` quando o navegador estiver fora do caminho padrão. Nenhuma suíte usa o banco de produção.
 
 [Controle de acesso no Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security) · [Autorização na OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+
+### Retorno dos links de acesso
+
+No painel do projeto Supabase, em **Authentication → URL Configuration**, use `https://supermercado-vieira-docker.onrender.com/` como **Site URL**. Se outros domínios da loja forem usados para solicitar acesso, inclua suas URLs de retorno exatas em **Redirect URLs**. O fluxo do botão por e-mail usa PKCE e requer o navegador que iniciou o envio. O formulário também permite confirmar o link original sem abri-lo. Na publicação Vercel, as rotas da API encaminham as requisições para o backend Render.

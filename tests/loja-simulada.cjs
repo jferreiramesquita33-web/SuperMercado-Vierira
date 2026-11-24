@@ -33,9 +33,18 @@ function consulta(tabela) {
 }
 process.env.VIERA_GERENTE_EMAIL = 'gerente@example.test';
 process.env.SUPABASE_URL = 'https://viera.example';
-function cliente(token) {
+function cliente(token, auth = {}) {
   if (!token) return { auth: {
-    async signInWithOtp(opcoes) { estado.ultimoEnvio=opcoes; return {}; },
+    async signInWithOtp(opcoes) {
+      estado.ultimoEnvio=opcoes;
+      auth.storage.setItem('vieira-auth-code-verifier', JSON.stringify('v'.repeat(64)));
+      return {};
+    },
+    async exchangeCodeForSession(codigo) {
+      if (codigo !== 'codigo-de-teste-valido' || auth.storage.getItem('vieira-auth-code-verifier') !== JSON.stringify('v'.repeat(64)))
+        return { error:{status:400} };
+      return this.verifyOtp({token:'123456'});
+    },
     async verifyOtp(prova) {
       estado.ultimaProva=prova;
       if (prova.token !== '123456' && prova.token_hash !== 'hash-de-teste') return { error:{status:403} };
