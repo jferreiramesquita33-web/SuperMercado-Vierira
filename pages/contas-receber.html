@@ -5,7 +5,7 @@
   <title>Contas a Receber — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -21,11 +21,10 @@
     <div id="modal-body"></div>
   </div>
 </div>
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
 initBrightness();
 let editId = null;
 let filterStatus = '', filterCat = '', filterPeriod = '';
@@ -34,7 +33,6 @@ function getCats() { return SV.get('categorias').filter(c=>c.tipo==='entrada'); 
 
 function render() {
   let contas = SV.get('contasReceber').map(c => ({...c, status: resolveStatusReceber(c)}));
-  SV.set('contasReceber', contas);
 
   if (filterStatus) contas = contas.filter(c=>c.status===filterStatus);
   if (filterCat) contas = contas.filter(c=>c.categoria===filterCat);
@@ -82,7 +80,7 @@ function render() {
                 ${contas.map(c=>`<tr>
                   <td><b>${escapeHTML(c.descricao)}</b>${c.observacao?`<br><small class="text-muted">${escapeHTML(c.observacao)}</small>`:''}</td>
                   <td>${escapeHTML(c.categoria||'—')}</td>
-                  <td>${c.origem||'—'}</td>
+                  <td>${escapeHTML(c.origem||'—')}</td>
                   <td>${fmtDate(c.dataVencimento)}</td>
                   <td>${fmtDate(c.dataRecebimento)||'—'}</td>
                   <td class="font-mono text-green">${fmtMoney(c.valor)}</td>
@@ -104,7 +102,9 @@ function render() {
   </div>`;
 }
 
+let idCadastro;
 function openModal(id = null) {
+  idCadastro = id || SV.newId();
   editId = id;
   const cats = getCats();
   const catOpts = cats.map(c=>`<option value="${escapeHTML(c.nome)}">${escapeHTML(c.nome)}</option>`).join('');
@@ -116,14 +116,14 @@ function openModal(id = null) {
     <div class="form-group"><label>Descrição *</label><input id="f-desc" value="${escapeHTML(c.descricao||'')}" placeholder="Ex: Venda a prazo"></div>
     <div class="form-row">
       <div class="form-group"><label>Categoria</label><select id="f-cat"><option value="">Selecione</option>${catOpts}</select></div>
-      <div class="form-group"><label>Origem/Cliente</label><input id="f-orig" value="${c.origem||''}" placeholder="Ex: Cliente João"></div>
+      <div class="form-group"><label>Origem/Cliente</label><input id="f-orig" value="${escapeHTML(c.origem||'')}" placeholder="Ex: Cliente João"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${c.valor||''}" placeholder="0,00"></div>
-      <div class="form-group"><label>Data Prevista *</label><input id="f-venc" type="date" value="${c.dataVencimento||''}"></div>
+      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${escapeHTML(c.valor||'')}" placeholder="0,00"></div>
+      <div class="form-group"><label>Data Prevista *</label><input id="f-venc" type="date" value="${escapeHTML(c.dataVencimento||'')}"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Data de Recebimento</label><input id="f-receb" type="date" value="${c.dataRecebimento||''}"></div>
+      <div class="form-group"><label>Data de Recebimento</label><input id="f-receb" type="date" value="${escapeHTML(c.dataRecebimento||'')}"></div>
       <div class="form-group"><label>Status</label>
         <select id="f-status">
           <option value="pendente" ${(c.status||'')==='pendente'?'selected':''}>Pendente</option>
@@ -134,7 +134,7 @@ function openModal(id = null) {
       </div>
     </div>
     <div class="form-group"><label>Observação</label><textarea id="f-obs">${escapeHTML(c.observacao||'')}</textarea></div>
-    <div class="form-group"><label>Comprovante de Recebimento</label><input type="text" id="f-comp" value="${c.comprovanteRecebimento||''}" placeholder="Nome do arquivo (simulação)"></div>
+    <div class="form-group"><label>Comprovante de Recebimento</label><input type="text" id="f-comp" value="${escapeHTML(c.comprovanteRecebimento||'')}" placeholder="Nome do arquivo (simulação)"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="salvar()">Salvar</button>
@@ -144,7 +144,7 @@ function openModal(id = null) {
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function salvar() {
+async function salvar() {
   const desc = document.getElementById('f-desc').value.trim();
   const valor = document.getElementById('f-valor').value;
   if (!Number.isFinite(Number(valor)) || Number(valor) <= 0) { showToast('Informe um valor maior que zero.', 'warn'); return; }
@@ -159,7 +159,7 @@ function salvar() {
   }
 
   const obj = {
-    id: editId || SV.newId(),
+    id: idCadastro,
     descricao: desc,
     categoria: document.getElementById('f-cat').value,
     origem: document.getElementById('f-orig').value,
@@ -171,27 +171,24 @@ function salvar() {
     comprovanteRecebimento: document.getElementById('f-comp').value,
   };
 
-  let list = SV.get('contasReceber');
-  if (editId) list = list.map(x=>x.id===editId?obj:x);
-  else list.push(obj);
-  SV.set('contasReceber', list);
+  if (!await SV.alterar('contasReceber', obj)) return;
   closeModal(); render();
 }
 
-function marcarRecebida(id) {
+async function marcarRecebida(id) {
   let list = SV.get('contasReceber');
   const c = list.find(x=>x.id===id);
   if (!c) return;
   const hoje = todayStr();
   c.dataRecebimento = hoje;
   c.status = hoje > c.dataVencimento ? 'recebida em atraso' : 'recebida';
-  SV.set('contasReceber', list);
+  if (!await SV.alterar('contasReceber', c)) return;
   render();
 }
 
 function excluir(id) {
-  showConfirm('Tem certeza que deseja excluir esta conta a receber? Esta ação não pode ser desfeita.', () => {
-    SV.set('contasReceber', SV.get('contasReceber').filter(x=>x.id!==id));
+  showConfirm('Tem certeza que deseja excluir esta conta a receber? Esta ação não pode ser desfeita.', async () => {
+    if (!await SV.alterar('contasReceber', {id}, true)) return;
     showToast('Conta excluída com sucesso', 'success');
     render();
   });
@@ -199,7 +196,7 @@ function excluir(id) {
 
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); editId = null; }
 document.getElementById('modal-overlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
-render();
+iniciarPagina(render);
 </script>
 </body>
 </html>

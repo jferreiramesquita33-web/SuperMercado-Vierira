@@ -15,7 +15,7 @@ function emailNormalizado(valor) {
 }
 
 function semSessao(res) {
-  return res.status(401).json({ codigo: 'GERENTE_NECESSARIO', erro: 'Confirme o e-mail de gerente para alterar produtos.' });
+  return res.status(401).json({ codigo: 'GERENTE_NECESSARIO', erro: 'Confirme o e-mail de gerente para acessar o sistema.' });
 }
 
 function indisponivel(res) {
@@ -49,13 +49,17 @@ async function exigirGerente(req, res, next) {
 }
 
 rotas.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+rotas.get('/sessao', exigirGerente, (req, res) => res.sendStatus(204));
 rotas.post('/sair', (req, res) => res.clearCookie(nomeCookie, opcoesCookie).sendStatus(204));
 
 rotas.use((req, res, next) => {
   const permitido = emailNormalizado(process.env.VIERA_GERENTE_EMAIL);
   if (!permitido) return indisponivel(res);
   const email = emailNormalizado(req.body?.email);
-  if (!email || email !== permitido) return res.status(403).json({ erro: 'Informe o e-mail cadastrado para o gerente.' });
+  if (!email || email !== permitido) {
+    if (req.path === '/enviar') return res.sendStatus(204);
+    return res.status(401).json({ erro: 'Os dados de acesso são inválidos ou expiraram.' });
+  }
   res.locals.email = email;
   next();
 });

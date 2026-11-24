@@ -88,8 +88,7 @@ function renderSidebar(active) {
   const themeIcon = savedTheme === 'light'
     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
     : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
-  const userType = localStorage.getItem('sv_user_type') || 'admin';
-  const userName = localStorage.getItem('sv_user_name') || 'Administrador';
+  const userName = 'Gerente Vieira';
   const userInitial = userName.charAt(0).toUpperCase();
   const userRole = 'Gerente';
 
@@ -270,8 +269,7 @@ function changeSiteImage(input) {
 // ======= TOPBAR =======
 function topbar(title) {
   const now = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const userName = localStorage.getItem('sv_user_name') || 'Admin';
-  const userType = localStorage.getItem('sv_user_type') || 'admin';
+  const userName = 'Gerente Vieira';
   const userInitial = userName.charAt(0).toUpperCase();
   const userRole = 'Gerente';
   const contas = SV.get('contasPagar');
@@ -341,10 +339,6 @@ function handleSearch(q) {
   q = q.trim().toLowerCase();
   if (!q) { res.classList.remove('open'); return; }
 
-  const products = [
-    'Arroz', 'Feijão', 'Açúcar', 'Café', 'Óleo', 'Sal', 'Farinha', 'Leite', 'Manteiga', 'Macarrão',
-    'Sabão', 'Detergente', 'Shampoo', 'Papel Higiênico', 'Refrigerante', 'Suco', 'Biscoito', 'Pão'
-  ];
   const produtosCadastrados = SV.get('produtos').map(p => p.nome);
   const funcionarios = SV.get('funcionarios').map(f => f.nome);
   const pages = [
@@ -359,7 +353,7 @@ function handleSearch(q) {
   let results = [];
   pages.filter(p => p.label.toLowerCase().includes(q)).forEach(p => results.push({ label: p.label, type: p.type, href: p.href }));
   funcionarios.filter(f => f.toLowerCase().includes(q)).slice(0,3).forEach(f => results.push({ label: f, type: 'Funcionário', href: 'funcionarios.html' }));
-  [...produtosCadastrados, ...products]
+  produtosCadastrados
     .filter((p, i, arr) => p && arr.indexOf(p) === i && p.toLowerCase().includes(q))
     .slice(0,3)
     .forEach(p => results.push({ label: p, type: 'Produto', href: 'produtos.html' }));
@@ -396,7 +390,7 @@ function showNotifications() {
     <div style="display:flex;flex-direction:column;gap:10px">
       ${vencidas.map(c=>`<div class="alert alert-error" style="margin:0">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <div><strong>${c.descricao}</strong> — venceu em ${fmtDate(c.dataVencimento)} · ${fmtMoney(c.valor)}</div>
+        <div><strong>${escapeHTML(c.descricao)}</strong> — venceu em ${fmtDate(c.dataVencimento)} · ${fmtMoney(c.valor)}</div>
       </div>`).join('')}
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Fechar</button></div>
@@ -414,7 +408,7 @@ function goTo(url) {
 let salvandoTudo = false;
 
 async function salvarTudo() {
-  if (salvandoTudo) return;
+  if (salvandoTudo || SV.ocupado) return;
   salvandoTudo = true;
   const botao = document.getElementById('btn-salvar-tudo');
   const rotulo = botao ? botao.querySelector('span') : null;
@@ -422,28 +416,21 @@ async function salvarTudo() {
   if (rotulo) rotulo.textContent = 'Salvando…';
 
   try {
-    // 1) Produtos: confirma com a API/banco e atualiza a cópia do navegador
-    if (typeof carregarProdutos === 'function') {
-      await carregarProdutos();
-    }
-
-    // 2) Dados locais (categorias, funcionários, contas, vales...): regrava tudo
-    const chaves = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('sv_') && k !== 'sv_ultimo_salvamento') chaves.push(k);
-    }
-    chaves.forEach(k => localStorage.setItem(k, localStorage.getItem(k)));
-
+    SV.ocupado = true;
+    await importarLegados();
+    await SV.ler();
+    await carregarProdutos();
+    await SV.pagina();
     const hora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    localStorage.setItem('sv_ultimo_salvamento', hora);
-    showToast('Tudo salvo às ' + hora + '.', 'success');
+
+    showToast('Dados sincronizados com a loja às ' + hora + '.', 'success');
   } catch (erro) {
     console.error('Erro ao salvar tudo:', erro);
     showToast((erro && erro.message) || 'Não foi possível salvar tudo.', 'warn');
   } finally {
     if (botao) botao.disabled = false;
     if (rotulo) rotulo.textContent = 'Salvar tudo';
+    SV.ocupado = false;
     salvandoTudo = false;
   }
 }

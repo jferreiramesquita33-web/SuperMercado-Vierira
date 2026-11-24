@@ -6,22 +6,20 @@
   <title>Dashboard - Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/login-transition.css?v=1">
   <script src="../assets/js/login-transition.js?v=1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="../assets/js/historico.js?v=1"></script>
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
 </head>
 <body>
 <div id="app"></div>
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
-initSeedData();
 
 let dashboardProdutos = [];
 let estoqueErro = false;
@@ -43,19 +41,6 @@ function buildDashboard() {
   const vencidas = contas.filter(c => c.status === 'vencida');
   const produtosComprar = produtos.filter(p => Boolean(p.comprar) || Number(p.estoque || 0) <= Number(p.minimo || 0));
   const ativos = funcionarios.filter(f => (f.status || 'ativo') === 'ativo');
-
-  const months = [];
-  const entradas = [];
-  const saidas = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - i);
-    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
-    months.push(d.toLocaleDateString('pt-BR', { month: 'short' }));
-    entradas.push(receber.filter(c => (c.status === 'recebida' || c.status === 'recebida em atraso') && isSameMonth(c.dataRecebimento, m)).reduce((s,c) => s + Number(c.valor || 0), 0));
-    saidas.push(contas.filter(c => (c.status === 'paga' || c.status === 'paga apos vencimento' || c.status === 'paga após vencimento') && isSameMonth(c.dataPagamento, m)).reduce((s,c) => s + Number(c.valor || 0), 0));
-  }
 
   document.getElementById('app').innerHTML = `
   <div class="app-shell">
@@ -103,14 +88,17 @@ function buildDashboard() {
             <div class="card-header">
               <span class="card-title">Fluxo dos últimos 6 meses</span>
             </div>
-            <canvas id="chart-flow" height="150"></canvas>
-            <div id="chart-flow-fallback" class="empty-state" style="display:none;padding:32px 12px"><p>Grafico indisponivel.</p></div>
+            <div id="fluxo"></div>
           </div>
 
           <div class="card">
             <div class="card-header">
               <span class="card-title">Pendências</span>
             </div>
+            <div class="historico-filtro"><label for="escopo-contas">Contas dos últimos 6 meses</label>
+              <select id="escopo-contas"><option value="abertas">Em aberto hoje</option><option value="todas">Todas as contas</option></select></div>
+            <p class="historico-ajuda">Valores em reais por mês de vencimento.</p>
+            <div id="historico-contas"></div>
             <div class="task-list">
               <a href="contas-pagar.html" class="task-item">
                 <span>Contas a pagar abertas</span>
@@ -167,65 +155,26 @@ function buildDashboard() {
     </div>
   </div>`;
 
-  if (typeof Chart === 'undefined') {
-    document.getElementById('chart-flow').style.display = 'none';
-    document.getElementById('chart-flow-fallback').style.display = 'block';
-    return;
+  const container = document.getElementById('historico-contas');
+  const filtro = document.getElementById('escopo-contas');
+  filtro.value = escopoContas;
+  function atualizarHistorico() {
+    escopoContas = filtro.value;
+    container.replaceChildren(graficoSemestral(historicoSemestral(contas, receber, escopoContas),
+      'Contas por vencimento', 'A pagar', 'A receber'));
   }
-
-  const isLight = document.body.classList.contains('theme-light');
-  const tickColor = isLight ? '#667289' : '#92a0b8';
-  const gridColor = isLight ? 'rgba(20,30,50,0.06)' : 'rgba(139,148,158,0.12)';
-
-  new Chart(document.getElementById('chart-flow'), {
-    type: 'bar',
-    data: {
-      labels: months,
-      datasets: [
-        {
-          label: 'Entradas',
-          data: entradas,
-          backgroundColor: '#2563eb',
-          borderRadius: 8,
-          maxBarThickness: 36
-        },
-        {
-          label: 'Saídas',
-          data: saidas,
-          backgroundColor: '#c8102e',
-          borderRadius: 8,
-          maxBarThickness: 36
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: {
-          labels: {
-            color: tickColor,
-            usePointStyle: true,
-            pointStyle: 'rectRounded',
-            padding: 16,
-            font: { family: 'Inter', size: 12, weight: '600' }
-          }
-        }
-      },
-      scales: {
-        x: { ticks: { color: tickColor }, grid: { display: false } },
-        y: {
-          ticks: { color: tickColor, callback: v => 'R$ ' + Number(v).toLocaleString('pt-BR') },
-          grid: { color: gridColor }
-        }
-      }
-    }
-  });
+  filtro.onchange = atualizarHistorico;
+  atualizarHistorico();
+  document.getElementById('fluxo').replaceChildren(graficoSemestral(historicoSemestral(contas, receber, 'fluxo'),
+    'Fluxo por data de pagamento ou recebimento', 'Saídas', 'Entradas'));
 }
-
-buildDashboard();
+let escopoContas = 'abertas';
 initBrightness();
-carregarProdutos().then(produtos => { dashboardProdutos = produtos; buildDashboard(); }).catch(() => { estoqueErro = true; buildDashboard(); });
+iniciarPagina(async () => {
+  try { dashboardProdutos = await carregarProdutos(); estoqueErro = false; }
+  catch { dashboardProdutos = []; estoqueErro = true; }
+  buildDashboard();
+});
 </script>
 </body>
 </html>

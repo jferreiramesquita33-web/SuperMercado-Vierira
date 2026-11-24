@@ -45,7 +45,7 @@ function confirmarGerente() {
         prova.required = true;
         prova.value = '';
         confirmar.textContent = 'Confirmar e continuar';
-        aviso.textContent = 'Acesso enviado. Confira também a pasta de spam.';
+        aviso.textContent = 'Se este e-mail estiver autorizado, o acesso chegará na caixa de entrada ou no spam.';
         prova.focus();
       } else {
         await requisitarAcesso('confirmar', { email: email.value, comprovante: prova.value }, requisicao.signal);

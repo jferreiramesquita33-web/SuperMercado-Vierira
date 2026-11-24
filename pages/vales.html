@@ -5,7 +5,7 @@
   <title>Vales — Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=12">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/transitions.css?v=4">
   <script src="../assets/js/transitions.js?v=5"></script>
@@ -21,11 +21,10 @@
     <div id="modal-body"></div>
   </div>
 </div>
-<script src="../assets/js/auth.js?v=5"></script>
-<script src="../assets/js/storage.js?v=4"></script>
-<script src="../assets/js/app.js?v=6"></script>
+<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/storage.js?v=12"></script>
+<script src="../assets/js/app.js?v=12"></script>
 <script>
-checkAuth();
 initBrightness();
 let editId=null, filterFunc='', filterPeriod=currentMonth();
 
@@ -87,11 +86,11 @@ function render(){
               ${vales.map(v=>{
                 const f=funcs.find(x=>x.id===v.funcionarioId);
                 return `<tr>
-                  <td><b>${f?f.nome:'—'}</b>${f?`<br><small class="text-muted">${escapeHTML(f.cargo||'')}</small>`:''}</td>
+                  <td><b>${escapeHTML(f?.nome || '—')}</b>${f?`<br><small class="text-muted">${escapeHTML(f.cargo||'')}</small>`:''}</td>
                   <td>${fmtDate(v.data)}</td>
                   <td class="font-mono" style="color:var(--purple)">${fmtMoney(v.valor)}</td>
                   <td>${escapeHTML(v.motivo||'—')}</td>
-                  <td>${v.comprovante?`<small class="text-muted">📎 ${v.comprovante}</small>`:'—'}</td>
+                  <td>${v.comprovante?`<small class="text-muted">📎 ${escapeHTML(v.comprovante)}</small>`:'—'}</td>
                   <td><div class="td-actions">
                     <button class="btn btn-sm btn-secondary btn-icon" onclick="openModal('${v.id}')">✏️</button>
                     <button class="btn btn-sm btn-danger btn-icon" onclick="excluir('${v.id}')">🗑</button>
@@ -106,7 +105,9 @@ function render(){
   </div>`;
 }
 
+let idCadastro;
 function openModal(id=null){
+  idCadastro = id || SV.newId();
   editId=id;
   const funcs=getFuncs();
   let v=id?SV.get('vales').find(x=>x.id===id):{};
@@ -120,11 +121,11 @@ function openModal(id=null){
       </select>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Data *</label><input id="f-data" type="date" value="${v.data||todayStr()}"></div>
-      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${v.valor||''}" placeholder="0,00"></div>
+      <div class="form-group"><label>Data *</label><input id="f-data" type="date" value="${escapeHTML(v.data||todayStr())}"></div>
+      <div class="form-group"><label>Valor *</label><input id="f-valor" type="number" step="0.01" value="${escapeHTML(v.valor||'')}" placeholder="0,00"></div>
     </div>
     <div class="form-group"><label>Motivo/Descrição</label><input id="f-motivo" value="${escapeHTML(v.motivo||'')}" placeholder="Ex: Adiantamento salarial"></div>
-    <div class="form-group"><label>Comprovante</label><input type="text" id="f-comp" value="${v.comprovante||''}" placeholder="Nome do arquivo (simulação)"></div>
+    <div class="form-group"><label>Comprovante</label><input type="text" id="f-comp" value="${escapeHTML(v.comprovante||'')}" placeholder="Nome do arquivo (simulação)"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="salvar()">Salvar</button>
@@ -132,22 +133,20 @@ function openModal(id=null){
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function salvar(){
+async function salvar(){
   const funcId=document.getElementById('f-func').value;
   const data=document.getElementById('f-data').value;
   const valor=document.getElementById('f-valor').value;
   if (!Number.isFinite(Number(valor)) || Number(valor) <= 0) { showToast('Informe um valor maior que zero.', 'warn'); return; }
   if(!funcId||!data||!valor){alert('Preencha os campos obrigatórios');return;}
-  const obj={id:editId||SV.newId(),funcionarioId:funcId,data,valor:parseFloat(valor),motivo:document.getElementById('f-motivo').value,comprovante:document.getElementById('f-comp').value};
-  let list=SV.get('vales');
-  if(editId)list=list.map(x=>x.id===editId?obj:x);else list.push(obj);
-  SV.set('vales',list);closeModal();render();
+  const obj={id:idCadastro,funcionarioId:funcId,data,valor:parseFloat(valor),motivo:document.getElementById('f-motivo').value,comprovante:document.getElementById('f-comp').value};
+  if (!await SV.alterar('vales', obj)) return;closeModal();render();
 }
 
-function excluir(id){showConfirm('Tem certeza que deseja excluir este vale?', () => { SV.set('vales',SV.get('vales').filter(x=>x.id!==id)); showToast('Vale excluído com sucesso','success'); render(); });}
+function excluir(id){showConfirm('Tem certeza que deseja excluir este vale?', async () => { if (!await SV.alterar('vales', {id}, true)) return; showToast('Vale excluído com sucesso','success'); render(); });}
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open');editId=null;}
 document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
-render();
+iniciarPagina(render);
 </script>
 </body>
 </html>
