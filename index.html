@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css?v=8">
-  <link rel="stylesheet" href="assets/css/login.css?v=6">
+  <link rel="stylesheet" href="assets/css/login.css?v=7">
   <link rel="icon" type="image/png" href="assets/img/logo-icon.png">
   <link rel="stylesheet" href="assets/css/login-transition.css?v=1">
   <script src="assets/js/login-transition.js?v=1"></script>
@@ -70,6 +70,7 @@
           <input id="prova-gerente" type="password" autocomplete="one-time-code" maxlength="4096">
         </div>
         <button class="btn-login" type="submit" id="login-btn-admin">Enviar acesso por e-mail</button>
+        <button class="btn btn-secondary" id="usar-mensagem" type="button">Já recebi o e-mail</button>
         <button class="btn btn-secondary" id="reiniciar-acesso" type="button" hidden>Trocar e-mail ou reenviar</button>
       </form>
     </div>
@@ -77,58 +78,86 @@
     <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
   </div>
 
-  <script src="assets/js/auth.js?v=12"></script>
+  <script src="assets/js/auth.js?v=13"></script>
   <script src="assets/js/app.js?v=12"></script>
   <script>
     initTheme();
     applySiteImage();
 
-    fetch('/api/gerente/sessao', { cache:'no-store' }).then(r => {
-      if (r.ok) location.replace('pages/dashboard.html');
-    }).catch(() => {});
     const form = document.getElementById('form-admin');
     const email = document.getElementById('email-gerente');
     const etapa = document.getElementById('etapa-prova');
     const prova = document.getElementById('prova-gerente');
     const botao = document.getElementById('login-btn-admin');
     const trocar = document.getElementById('reiniciar-acesso');
+    const usar = document.getElementById('usar-mensagem');
     const ajuda = document.getElementById('acesso-ajuda');
+
+    function mostrarProva(mensagem) {
+      etapa.hidden = trocar.hidden = false;
+      usar.hidden = true;
+      email.readOnly = prova.required = true;
+      ajuda.textContent = mensagem;
+      botao.textContent = 'Confirmar e entrar';
+      prova.focus();
+    }
+    function entrar() {
+      prova.value = '';
+      localStorage.setItem('sv_logged','true');
+      if (window.SVLoginTransition) window.SVLoginTransition.start();
+      else location.replace('pages/dashboard.html');
+    }
+    const orientacao = 'Digite o código ou, no e-mail mais recente, clique com o botão direito no botão de acesso, copie o endereço do link e cole aqui.';
+    usar.onclick = () => { if (email.reportValidity()) mostrarProva(orientacao); };
     trocar.onclick = () => {
       etapa.hidden = trocar.hidden = true;
-      prova.required = email.readOnly = false;
+      usar.hidden = prova.required = email.readOnly = false;
       prova.value = '';
       botao.textContent = 'Enviar acesso por e-mail';
       ajuda.textContent = 'Entre com o e-mail autorizado para esta loja.';
       email.focus();
     };
+    function ocupar(ocupado) { botao.disabled = trocar.disabled = usar.disabled = ocupado; }
     form.onsubmit = async event => {
       event.preventDefault();
       if (botao.disabled) return;
-      botao.disabled = trocar.disabled = true;
+      ocupar(true);
       const enviando = etapa.hidden;
       let entrou = false;
       try {
-        const res = await fetch('/api/gerente/' + (enviando ? 'enviar' : 'confirmar'), {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({ email:email.value.trim(), comprovante:prova.value })
-        });
-        if (!res.ok) throw new Error((await res.json()).erro || 'Tente novamente.');
+        const dados = { email:email.value.trim() };
         if (enviando) {
-          etapa.hidden = trocar.hidden = false;
-          email.readOnly = prova.required = true;
-          ajuda.textContent = 'Digite o código recebido ou copie o endereço do botão do e-mail e cole abaixo, sem abrir o link.';
-          botao.textContent = 'Confirmar e entrar';
-          prova.focus();
+          await requisitarAcesso('enviar',dados);
+          mostrarProva(orientacao);
         } else {
+          await confirmarMensagem(dados.email,prova.value.trim());
           entrou = true;
-          prova.value = '';
-          localStorage.setItem('sv_logged','true'); // Somente para a animação de entrada.
-          if (window.SVLoginTransition) window.SVLoginTransition.start();
-          else location.replace('pages/dashboard.html');
+          entrar();
         }
-      } catch (err) { ajuda.textContent = err.message || 'Confira a conexão e tente novamente.'; }
-      finally { botao.disabled = entrou; trocar.disabled = false; }
+      } catch (err) {
+        if (enviando && err.status === 429) mostrarProva('O limite de envios foi atingido. ' + orientacao);
+        else ajuda.textContent = err.message;
+      } finally { ocupar(entrou); }
     };
+
+    async function iniciarAcesso() {
+      const parametros = new URLSearchParams(location.search);
+      const codigo = parametros.get('code');
+      const falhou = parametros.has('error') || new URLSearchParams(location.hash.slice(1)).has('error');
+      if (codigo || falhou) {
+        history.replaceState(null,'',location.pathname);
+        if (falhou) { ajuda.textContent = 'O link expirou ou já foi usado. Peça outro acesso.'; return; }
+        ocupar(true);
+        try { await requisitarAcesso('retorno',{codigo}); entrar(); }
+        catch (err) { ajuda.textContent = err.message; ocupar(false); }
+        return;
+      }
+      try {
+        const r = await fetch('/api/gerente/sessao',{ cache:'no-store' });
+        if (r.status === 204) location.replace('pages/dashboard.html');
+      } catch { /* O formulário continua disponível para uma nova tentativa. */ }
+    }
+    iniciarAcesso();
   </script>
 </body>
 </html>

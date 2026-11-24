@@ -1,13 +1,3 @@
-async function requisitarAcesso(rota, dados, signal) {
-  const resposta = await fetch('/api/gerente/' + rota, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dados), signal
-  });
-  if (resposta.ok) return;
-  const erro = await resposta.json().catch(() => ({}));
-  throw new Error(erro.erro || 'Não foi possível confirmar o acesso do gerente.');
-}
-
 function confirmarGerente() {
   const dialogo = document.getElementById('acesso-gerente');
   if (dialogo.open) throw new Error('Já existe uma confirmação em andamento.');
@@ -48,7 +38,7 @@ function confirmarGerente() {
         aviso.textContent = 'Se este e-mail estiver autorizado, o acesso chegará na caixa de entrada ou no spam.';
         prova.focus();
       } else {
-        await requisitarAcesso('confirmar', { email: email.value, comprovante: prova.value }, requisicao.signal);
+        await confirmarMensagem(email.value, prova.value.trim(), requisicao.signal);
         if (!requisicao.signal.aborted) dialogo.close('confirmado');
       }
     } catch (erro) {

@@ -1,3 +1,38 @@
+// Um retorno PKCE só funciona com o cookie do navegador que iniciou o pedido.
+function confirmarMensagem(email, valor, signal) {
+  let link;
+  try { link = new URL(valor); } catch { /* Códigos numéricos também são aceitos. */ }
+  if (link) {
+    if (link.hash) throw new Error('Use o link original da mensagem. Se já foi usado, solicite um novo acesso quando o envio estiver disponível.');
+    const codigo = link.searchParams.get('code');
+    if (codigo && (link.origin === location.origin || ['localhost','127.0.0.1'].includes(link.hostname)))
+      return requisitarAcesso('retorno',{codigo},signal);
+  }
+  return requisitarAcesso('confirmar',{email,comprovante:valor},signal);
+}
+
+async function requisitarAcesso(rota, dados, signal) {
+  let resposta;
+  try {
+    resposta = await fetch('/api/gerente/' + rota, {
+      method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, cache:'no-store',
+      body:JSON.stringify(dados), signal
+    });
+  } catch (erro) {
+    if (erro.name === 'AbortError') throw erro;
+    throw new Error('O site não conseguiu se conectar. Confira a internet e tente novamente.');
+  }
+  if (resposta.status === 204) return;
+  const json = resposta.headers.get('Content-Type')?.includes('application/json')
+    ? await resposta.json().catch(() => null) : null;
+  const mensagem = typeof json?.erro === 'string' ? json.erro : resposta.status === 429
+    ? 'O limite de envios foi atingido. Use a mensagem mais recente ou tente mais tarde.'
+    : 'O serviço de acesso está indisponível neste endereço. Tente novamente em instantes.';
+  const erro = new Error(mensagem);
+  erro.status = resposta.status;
+  throw erro;
+}
+
 async function logout() {
   const terminar = async () => {
     try {

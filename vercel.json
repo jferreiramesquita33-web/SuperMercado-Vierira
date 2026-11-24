@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://supermercado-vieira-docker.onrender.com/api/:path*" },
+    { "source": "/index.htm", "destination": "/index.html" }
+  ]
+}

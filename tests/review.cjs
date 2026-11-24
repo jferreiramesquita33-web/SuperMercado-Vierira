@@ -60,8 +60,22 @@ function mountProductPage(loadProducts) {
     assert.equal((await request('/api/produtos','POST',product)).status,401);
     assert.equal((await request('/api/gerente/enviar','POST',{email:'outra@example.test'})).status,204);
     assert.equal(estado.ultimoEnvio,undefined);
-    assert.equal((await request('/api/gerente/enviar','POST',{email})).status,204);
-    assert.deepEqual(estado.ultimoEnvio,{email});
+    const inicio = await request('/api/gerente/enviar','POST',{email});
+    assert.equal(inicio.status,204);
+    assert.equal(estado.ultimoEnvio.email,email);
+    assert.equal(estado.ultimoEnvio.options.emailRedirectTo,'https://supermercado-vieira-docker.onrender.com/');
+    const fluxo = inicio.headers.getSetCookie()[0].split(';')[0];
+    const codigo = { codigo:'codigo-de-teste-valido' };
+    assert.equal((await request('/api/gerente/retorno','POST',codigo)).status,400);
+    const retorno = await request('/api/gerente/retorno','POST',codigo,{Cookie:fluxo});
+    assert.equal(retorno.status,204);
+    assert.ok(retorno.headers.getSetCookie().some(c => c.startsWith('viera_gerente=') && c.includes('HttpOnly')));
+    const acesso = vm.createContext({});
+    vm.runInContext(fs.readFileSync(path.join(root,'assets/js/auth.js'),'utf8'),acesso);
+    for (const [status,body] of [[404,'The page could not be found'],[200,'<html>'],[429,'Limite']]) {
+      acesso.fetch=async()=>new Response(body,{status});
+      await assert.rejects(acesso.requisitarAcesso('enviar',{email}), err=>err.status===status && !err.message.includes('JSON'));
+    }
     const verificar = comprovante => request('/api/gerente/confirmar','POST',{email,comprovante});
     assert.equal((await verificar('https://outro.example/auth/v1/verify?type=signup&token=teste')).status,400);
     assert.equal((await verificar('000000')).status,401);
