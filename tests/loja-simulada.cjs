@@ -43,11 +43,6 @@ function cliente(token, auth = {}) {
     async exchangeCodeForSession(codigo) {
       if (codigo !== 'codigo-de-teste-valido' || auth.storage.getItem('vieira-auth-code-verifier') !== JSON.stringify('v'.repeat(64)))
         return { error:{status:400} };
-      return this.verifyOtp({token:'123456'});
-    },
-    async verifyOtp(prova) {
-      estado.ultimaProva=prova;
-      if (prova.token !== '123456' && prova.token_hash !== 'hash-de-teste') return { error:{status:403} };
       const access_token = randomUUID();
       estado.sessoes.add(access_token);
       return {data:{user:{email:'gerente@example.test',email_confirmed_at:'2026-01-01'},session:{access_token,expires_in:3600}}};

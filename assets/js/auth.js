@@ -1,16 +1,3 @@
-// Um retorno PKCE só funciona com o cookie do navegador que iniciou o pedido.
-function confirmarMensagem(email, valor, signal) {
-  let link;
-  try { link = new URL(valor); } catch { /* Códigos numéricos também são aceitos. */ }
-  if (link) {
-    if (link.hash) throw new Error('Use o link original da mensagem. Se já foi usado, solicite um novo acesso quando o envio estiver disponível.');
-    const codigo = link.searchParams.get('code');
-    if (codigo && (link.origin === location.origin || ['localhost','127.0.0.1'].includes(link.hostname)))
-      return requisitarAcesso('retorno',{codigo},signal);
-  }
-  return requisitarAcesso('confirmar',{email,comprovante:valor},signal);
-}
-
 async function requisitarAcesso(rota, dados, signal) {
   let resposta;
   try {

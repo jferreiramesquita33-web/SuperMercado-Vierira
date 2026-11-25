@@ -76,13 +76,14 @@ function mountProductPage(loadProducts) {
       acesso.fetch=async()=>new Response(body,{status});
       await assert.rejects(acesso.requisitarAcesso('enviar',{email}), err=>err.status===status && !err.message.includes('JSON'));
     }
-    const verificar = comprovante => request('/api/gerente/confirmar','POST',{email,comprovante});
-    assert.equal((await verificar('https://outro.example/auth/v1/verify?type=signup&token=teste')).status,400);
-    assert.equal((await verificar('000000')).status,401);
-    const cookie = (await verificar('123456')).headers.get('set-cookie');
+    assert.equal((await request('/api/gerente/confirmar','POST',{email,comprovante:'123456'})).status,404);
+    const cookie = retorno.headers.getSetCookie()[0];
     assert.match(cookie,/HttpOnly/); assert.match(cookie,/SameSite=Strict/); assert.match(cookie,/Path=\/api/);
     const a = { Cookie:cookie.split(';')[0] };
-    const b = { Cookie:(await verificar('https://viera.example/auth/v1/verify?type=signup&token=hash-de-teste')).headers.get('set-cookie').split(';')[0] };
+    const novoInicio = await request('/api/gerente/enviar','POST',{email});
+    const novoFluxo = novoInicio.headers.getSetCookie()[0].split(';')[0];
+    const novaSessao = await request('/api/gerente/retorno','POST',codigo,{Cookie:novoFluxo});
+    const b = {Cookie:novaSessao.headers.getSetCookie()[0].split(';')[0]};
     assert.notEqual(a.Cookie,b.Cookie);
     const api = (url,method,body,headers=a) => request(url,method,body,headers);
     for (const body of [null,{}, {...product,nome:' '},{...product,estoque:1.2},{...product,preco:-1},{...product,comprar:'false'},{...product,categoria:123}])

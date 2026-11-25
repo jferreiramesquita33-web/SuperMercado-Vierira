@@ -100,31 +100,6 @@ rotas.post('/enviar', async (req, res) => {
   res.cookie(cookieFluxo, valor, { ...opcoesCookie, maxAge:3600000 }).sendStatus(204);
 });
 
-// O modelo padrão do Supabase envia um link. Modelos personalizados podem enviar um código.
-function dadosVerificacao(email, comprovante) {
-  if (typeof comprovante !== 'string' || comprovante.length > 4096) return null;
-  const valor = comprovante.trim();
-  if (/^\d{6,10}$/.test(valor)) return { email, token: valor, type: 'email' };
-  try {
-    const link = new URL(valor);
-    const tipo = link.searchParams.get('type');
-    const hash = link.searchParams.get('token');
-    if (link.origin !== new URL(process.env.SUPABASE_URL).origin || link.pathname !== '/auth/v1/verify' ||
-        !['email', 'signup', 'magiclink'].includes(tipo) || !hash || hash.length > 256) return null;
-    return { token_hash: hash, type: tipo };
-  } catch { return null; }
-}
-
-rotas.post('/confirmar', async (req, res) => {
-  const cliente = criarCliente();
-  if (!cliente) return indisponivel(res);
-  const email = res.locals.email;
-  const prova = dadosVerificacao(email, req.body?.comprovante);
-  if (!prova) return res.status(400).json({ erro: 'Cole o link original do e-mail ou digite o código recebido.' });
-  const { data, error } = await cliente.auth.verifyOtp(prova);
-  return concluirSessao(res,email,data,error);
-});
-
 rotas.post('/retorno', async (req,res) => {
   const codigo = req.body?.codigo;
   if (typeof codigo !== 'string' || !/^[a-zA-Z0-9_-]{16,180}$/.test(codigo))
