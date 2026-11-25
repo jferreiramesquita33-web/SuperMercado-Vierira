@@ -128,18 +128,15 @@ try {
   assert.equal(await evaluate('window.__openingCount'), 1);
   async function enviarAcesso() {
     await evaluate("document.getElementById('email-gerente').value='gerente@example.test';document.getElementById('form-admin').requestSubmit()");
-    await until("!document.getElementById('etapa-prova').hidden");
+    await until("document.getElementById('acesso-ajuda').textContent.includes('Abra o link')");
   }
-  async function confirmar(codigo) {
-    await evaluate("document.getElementById('prova-gerente').value=" + JSON.stringify(codigo) + ";document.getElementById('form-admin').requestSubmit()");
+  async function abrirLink() {
+    await evaluate("location.assign('/?code=codigo-de-teste-valido')");
   }
   await enviarAcesso();
-  await confirmar("000000");
-  await until("!document.getElementById('login-btn-admin').disabled");
+  assert.equal(await evaluate("document.querySelector('[autocomplete=one-time-code]')"), null);
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
-  assert.equal(await evaluate("document.querySelector('.sv-login-overlay')"), null);
-  await confirmar("123456");
-  await evaluate("document.getElementById('form-admin').requestSubmit()");
+  await abrirLink();
   await until("!!document.querySelector('.sv-login-overlay')");
   assert.equal(await evaluate("document.getElementById('login-btn-admin').disabled"), true);
   assert.equal(await evaluate("document.querySelectorAll('.sv-login-overlay').length"), 1);
@@ -231,7 +228,9 @@ try {
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
   // A fresh entry while already signed in should open once at the destination.
   await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
-  const sessao = await fetch(origin+'/api/gerente/confirmar',{method:'POST', headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'gerente@example.test',comprovante:'123456'})});
+  const headers = {'Content-Type':'application/json'};
+  const envio = await fetch(origin+'/api/gerente/enviar',{method:'POST',headers,body:JSON.stringify({email:'gerente@example.test'})});
+  const sessao = await fetch(origin+'/api/gerente/retorno',{method:'POST',headers:{...headers,Cookie:envio.headers.getSetCookie()[0].split(';')[0]},body:JSON.stringify({codigo:'codigo-de-teste-valido'})});
   const token = sessao.headers.get('set-cookie').split(';')[0].split('=')[1];
   await cdp('Network.setCookie',{name:'viera_gerente',value:token,url:origin+'/api',path:'/api',httpOnly:true});
   await evaluate("sessionStorage.removeItem('sv_opening_seen'); localStorage.setItem('sv_logged','true'); location.reload()");
@@ -248,7 +247,7 @@ try {
   assert.equal(await evaluate("localStorage.getItem('sv_logged')"), null);
   assert.equal(await evaluate('window.__openingCount'), 0, 'No second opening after logout');
   await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-  await enviarAcesso(); await confirmar("123456");
+  await enviarAcesso(); await abrirLink();
   await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.kpi-card')");
   assert.equal(await evaluate('window.__loginCovers.length'),0);
   assert.equal(await evaluate('document.body.inert'),false);
