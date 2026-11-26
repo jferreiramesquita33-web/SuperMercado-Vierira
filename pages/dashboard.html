@@ -6,7 +6,7 @@
   <title>Dashboard - Supermercado Vieira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../assets/css/style.css?v=12">
+  <link rel="stylesheet" href="../assets/css/style.css?v=13">
   <link rel="icon" type="image/png" href="../assets/img/logo-icon.png">
   <link rel="stylesheet" href="../assets/css/login-transition.css?v=1">
   <script src="../assets/js/login-transition.js?v=1"></script>
@@ -16,6 +16,24 @@
 </head>
 <body>
 <div id="app"></div>
+<dialog id="cadastro-senha" class="modal" aria-labelledby="titulo-senha">
+  <form id="form-senha" method="post">
+    <div class="modal-header"><h2 class="modal-title" id="titulo-senha">Cadastrar senha do Viera</h2></div>
+    <div class="form-group">
+      <label for="nova-senha">Nova senha</label>
+      <input id="nova-senha" type="password" autocomplete="new-password" minlength="12" maxlength="72" required aria-describedby="ajuda-senha">
+    </div>
+    <div class="form-group">
+      <label for="confirmar-senha">Repita a senha</label>
+      <input id="confirmar-senha" type="password" autocomplete="new-password" required>
+    </div>
+    <p id="ajuda-senha" role="status">Use pelo menos 12 caracteres. Você poderá entrar com esta senha quando o e-mail não chegar.</p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" id="cancelar-senha">Cancelar</button>
+      <button class="btn btn-primary" type="submit">Salvar senha</button>
+    </div>
+  </form>
+</dialog>
 <script src="../assets/js/auth.js?v=12"></script>
 <script src="../assets/js/storage.js?v=12"></script>
 <script src="../assets/js/app.js?v=12"></script>
@@ -53,6 +71,7 @@ function buildDashboard() {
             <h2 class="section-title">Visão geral</h2>
             <p class="page-subtitle">Resumo simples do mês atual</p>
           </div>
+          <button class="btn btn-secondary" type="button" onclick="document.getElementById('cadastro-senha').showModal()">Cadastrar senha</button>
         </div>
 
         ${vencidas.length ? `<div class="alert alert-error mb-4">
@@ -169,6 +188,34 @@ function buildDashboard() {
     'Fluxo por data de pagamento ou recebimento', 'Saídas', 'Entradas'));
 }
 let escopoContas = 'abertas';
+const dialogoSenha = document.getElementById('cadastro-senha');
+const formSenha = document.getElementById('form-senha');
+const ajudaSenha = document.getElementById('ajuda-senha');
+const instrucaoSenha = ajudaSenha.textContent;
+const salvarSenha = formSenha.querySelector('[type=submit]');
+const cancelarSenha = document.getElementById('cancelar-senha');
+cancelarSenha.onclick = () => dialogoSenha.close();
+dialogoSenha.oncancel = evento => { if (salvarSenha.disabled) evento.preventDefault(); };
+dialogoSenha.onclose = () => { formSenha.reset(); ajudaSenha.textContent = instrucaoSenha; };
+formSenha.onsubmit = async evento => {
+  evento.preventDefault();
+  if (salvarSenha.disabled) return;
+  const senha = document.getElementById('nova-senha').value;
+  const confirmar = document.getElementById('confirmar-senha');
+  if (senha !== confirmar.value) {
+    ajudaSenha.textContent = 'As senhas são diferentes. Digite a mesma senha nos dois campos.';
+    confirmar.focus();
+    return;
+  }
+  salvarSenha.disabled = cancelarSenha.disabled = true;
+  try {
+    await requisitarAcesso('definir-senha', { senha });
+    dialogoSenha.close();
+    showToast('Senha salva. No próximo acesso, escolha Usar senha.', 'success');
+  } catch (erro) {
+    ajudaSenha.textContent = erro.message;
+  } finally { salvarSenha.disabled = cancelarSenha.disabled = false; }
+};
 initBrightness();
 iniciarPagina(async () => {
   try { dashboardProdutos = await carregarProdutos(); estoqueErro = false; }

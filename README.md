@@ -6,7 +6,7 @@ Sistema de gestão da loja com interface em português, API Express e banco comp
 
 ## Entrar e salvar
 
-1. Informe o e-mail do gerente cadastrado. Se já recebeu uma mensagem, selecione **Já recebi o e-mail** e informe o código ou o endereço original do botão. O formulário aceita a mensagem mesmo quando o provedor limita novos envios. A sessão dura até uma hora.
+1. Informe o e-mail do gerente. Se já recebeu a mensagem, abra [a página de acesso](https://supermercado-vieira-docker.onrender.com/acesso) para digitar o código ou colar o endereço original do botão. Depois de entrar, selecione **Cadastrar senha** no Dashboard e escolha uma senha sua do Viera. Nos próximos acessos, **Usar senha** funciona mesmo quando o serviço de e-mail está indisponível. A sessão dura até uma hora.
 2. Em **Produtos**, preencha o cadastro e clique em **Salvar produto**. A confirmação depende da gravação no banco. Em outro computador ou celular, entre com a conta autorizada e abra Produtos.
 3. Contas, funcionários, categorias e vales são gravados no mesmo banco ao confirmar os formulários. Se duas pessoas editarem o mesmo registro, a versão mais antiga precisa ser recarregada.
 4. Para trazer dados da versão anterior, entre pelo endereço e navegador em que foram cadastrados e clique em **Salvar tudo**. A importação preserva os IDs e os vínculos de vales e pode ser repetida. Produtos antigos que tinham apenas o estoque usam o preço inicial de R$ 0,00 até o gerente informar o valor. Tema, brilho e imagem de preferência são locais.
@@ -29,4 +29,4 @@ Os testes de API usam uma loja em memória com sessões independentes. A suíte 
 
 ### Retorno dos links de acesso
 
-No painel do projeto Supabase, em **Authentication → URL Configuration**, use `https://supermercado-vieira-docker.onrender.com/` como **Site URL**. Se outros domínios da loja forem usados para solicitar acesso, inclua suas URLs de retorno exatas em **Redirect URLs**. O fluxo do botão por e-mail usa PKCE e requer o navegador que iniciou o envio. O formulário também permite confirmar o link original sem abri-lo. Na publicação Vercel, as rotas da API encaminham as requisições para o backend Render.
+No painel do projeto Supabase, em **Authentication → URL Configuration**, use `https://supermercado-vieira-docker.onrender.com/` como **Site URL**. Em **Redirect URLs**, autorize `https://supermercado-vieira-docker.onrender.com/acesso`. Para outras publicações da loja, autorize o endereço exato de `/acesso` no respectivo domínio. O botão do e-mail abre a página no domínio em que o acesso foi solicitado. Abra o link no mesmo navegador que iniciou o envio. Também é possível digitar o código ou colar o endereço original da mensagem na página de acesso. Na publicação Vercel, as rotas da API encaminham as requisições para o backend Render.

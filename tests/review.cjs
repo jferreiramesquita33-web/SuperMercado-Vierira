@@ -14,7 +14,8 @@ for (const name of ['index.html', ...fs.readdirSync(path.join(root, 'pages')).ma
   }
   for (const match of html.matchAll(/(?:src|href)="([^"?#]+)(?:[^\"]*)"/g)) {
     if (/^(https?:|data:|#)/.test(match[1])) continue;
-    assert.ok(fs.existsSync(path.resolve(root, path.dirname(name), match[1])), name + ': missing ' + match[1]);
+    const recurso = match[1].startsWith('/') ? path.join(root, match[1]) : path.resolve(root, path.dirname(name), match[1]);
+    assert.ok(fs.existsSync(recurso), name + ': missing ' + match[1]);
   }
 }
 const context = vm.createContext({ document:{addEventListener(){}}, window:{addEventListener(){}}, console, AbortController, setTimeout, clearTimeout });
@@ -52,6 +53,7 @@ function mountProductPage(loadProducts) {
   const request = (url, method='GET', body, headers={}) => fetch(origin + url, {method, headers: {'Content-Type':'application/json', ...headers}, body: body === undefined ? undefined : JSON.stringify(body)});
   try {
     assert.equal((await request('/')).status, 200);
+    assert.match(await (await request('/acesso')).text(), /data-usar-senha/);
     for (const url of ['/backend/server.js','/backend/.env','/package.json','/api/inexistente']) assert.equal((await request(url)).status,404,url);
     const email = 'gerente@example.test';
     for (const path of ['/api/produtos','/api/registros','/api/gerente/sessao'])
@@ -63,7 +65,9 @@ function mountProductPage(loadProducts) {
     const inicio = await request('/api/gerente/enviar','POST',{email});
     assert.equal(inicio.status,204);
     assert.equal(estado.ultimoEnvio.email,email);
-    assert.equal(estado.ultimoEnvio.options.emailRedirectTo,'https://supermercado-vieira-docker.onrender.com/');
+    assert.equal(estado.ultimoEnvio.options.emailRedirectTo,'https://supermercado-vieira-docker.onrender.com/acesso');
+    await request('/api/gerente/enviar','POST',{email},{Origin:'https://sistema-vieira.vercel.app'});
+    assert.equal(estado.ultimoEnvio.options.emailRedirectTo,'https://sistema-vieira.vercel.app/acesso');
     const fluxo = inicio.headers.getSetCookie()[0].split(';')[0];
     const codigo = { codigo:'codigo-de-teste-valido' };
     assert.equal((await request('/api/gerente/retorno','POST',codigo)).status,400);
@@ -82,6 +86,25 @@ function mountProductPage(loadProducts) {
     const cookie = (await verificar('123456')).headers.get('set-cookie');
     assert.match(cookie,/HttpOnly/); assert.match(cookie,/SameSite=Strict/); assert.match(cookie,/Path=\/api/);
     const a = { Cookie:cookie.split(';')[0] };
+    const senha = ' ' + require('node:crypto').randomUUID() + ' ';
+    const definir = (valor, headers) => request('/api/gerente/definir-senha','POST',{senha:valor},headers);
+    const entrarComSenha = (email, senha) => request('/api/gerente/senha','POST',{email,senha});
+    assert.equal((await definir(senha)).status,401);
+    assert.equal((await definir(senha,{Authorization:'Bearer sem-perfil'})).status,403);
+    assert.equal((await definir('curta',a)).status,400);
+    assert.equal((await definir(senha,a)).status,204);
+    const invalida = await entrarComSenha(email,senha.trim());
+    assert.equal(invalida.status,401);
+    assert.equal(invalida.headers.get('Set-Cookie'),null);
+    const emailErrado = await entrarComSenha('outra@example.test',senha);
+    assert.deepEqual(await emailErrado.json(),await invalida.json());
+    assert.equal((await entrarComSenha(email,{valor:senha})).status,401);
+    const porSenha = await entrarComSenha(email.toUpperCase(),senha);
+    assert.equal(porSenha.status,204);
+    const novaSessao = porSenha.headers.getSetCookie()[0];
+    assert.match(novaSessao,/HttpOnly/);
+    assert.match(novaSessao,/SameSite=Strict/);
+    assert.equal((await request('/api/gerente/sessao','GET',undefined,{Cookie:novaSessao.split(';')[0]})).status,204);
     const b = { Cookie:(await verificar('https://viera.example/auth/v1/verify?type=signup&token=hash-de-teste')).headers.get('set-cookie').split(';')[0] };
     assert.notEqual(a.Cookie,b.Cookie);
     const api = (url,method,body,headers=a) => request(url,method,body,headers);

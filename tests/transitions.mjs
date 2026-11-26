@@ -1,7 +1,8 @@
 // Browser regression checks, with no npm dependencies. Run: node tests/transitions.mjs
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import './loja-simulada.cjs';
+import estado from './loja-simulada.cjs';
+import { randomUUID } from 'node:crypto';
 import app from '../backend/server.js';
 import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -252,6 +253,34 @@ try {
   await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.kpi-card')");
   assert.equal(await evaluate('window.__loginCovers.length'),0);
   assert.equal(await evaluate('document.body.inert'),false);
+  const senhaTeste = randomUUID();
+  await evaluate("document.querySelector('button[onclick*=cadastro-senha]').click()");
+  await evaluate("document.querySelector('#nova-senha').value=" + JSON.stringify(senhaTeste) +
+    ";document.querySelector('#confirmar-senha').value='outra senha de teste';document.querySelector('#form-senha').requestSubmit()");
+  await until("document.querySelector('#ajuda-senha').textContent.includes('diferentes')");
+  await evaluate("document.querySelector('#confirmar-senha').value=document.querySelector('#nova-senha').value;document.querySelector('#form-senha').requestSubmit()");
+  await until("!document.querySelector('#cadastro-senha').open");
+  assert.equal(estado.senha,senhaTeste);
+  await evaluate('logout()');
+  await until("location.pathname.endsWith('/index.html') && !!document.querySelector('#form-admin')?.onsubmit");
+  await cdp('Page.navigate', {url:origin+'/acesso'});
+  await until("document.querySelector('#etapa-prova')?.hidden === false");
+  assert.equal(await evaluate("document.querySelector('#email-gerente').readOnly"),false);
+  await evaluate("document.querySelector('[data-reiniciar]').click()");
+  estado.falhaEmail=503;
+  await evaluate("document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#form-admin').requestSubmit()");
+  await until("document.querySelector('#acesso-ajuda').textContent.includes('não conseguiu enviar')");
+  await evaluate("document.querySelector('[data-usar-senha]').click();document.querySelector('#senha-gerente').value='senha incorreta';document.querySelector('#form-admin').requestSubmit()");
+  await until("document.querySelector('#acesso-ajuda').textContent.includes('incorretos')");
+  assert.equal(await evaluate("document.querySelector('#email-gerente').value"),'gerente@example.test');
+  await evaluate("document.querySelector('#senha-gerente').value="+JSON.stringify(senhaTeste)+";document.querySelector('#form-admin').requestSubmit()");
+  await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.kpi-card')");
+  await cdp('Page.navigate',{url:origin+'/pages/produtos.html'});
+  await until("!!document.querySelector('#acesso-gerente') && !!document.querySelector('.page-content')");
+  await evaluate("confirmarGerente().then(sim=>window.__reconfirmado=sim)");
+  await evaluate("document.querySelector('[data-usar-senha]').click();document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#senha-gerente').value="+JSON.stringify(senhaTeste)+";document.querySelector('#form-acesso-gerente').requestSubmit()");
+  await until("window.__reconfirmado === true && !document.querySelector('#acesso-gerente').open");
+  console.log('PASS: cadastro de senha, endereço público do código, falha no envio e autenticação por senha no login e na edição de produtos.');
   console.log('PASS: valid-login handoff covered on both documents, duplicate-click guard, reduced-motion login, single synchronized contraction, viewport coverage at desktop/ultrawide/mobile/landscape, common center/scale, 250ms finale, unchanged logout, native navigation, themes and reduced motion.');
   await cdp('Browser.close');
 

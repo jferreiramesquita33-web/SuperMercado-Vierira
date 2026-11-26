@@ -27,7 +27,7 @@ app.use('/api/registros', exigirGerente, registros);
 const raiz = path.join(__dirname, '..');
 app.use('/assets', express.static(path.join(raiz, 'assets')));
 app.use('/pages', express.static(path.join(raiz, 'pages')));
-app.get(['/', '/index.html', '/index.htm'], (req, res) => res.sendFile(path.join(raiz, 'index.html')));
+app.get(['/', '/acesso', '/index.html', '/index.htm'], (req, res) => res.sendFile(path.join(raiz, 'index.html')));
 
 app.use('/api/produtos', exigirGerente);
 const tabela = res => res.locals.bancoGerente.from('produtos');

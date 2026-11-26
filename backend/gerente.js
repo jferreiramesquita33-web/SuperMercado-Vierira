@@ -4,9 +4,9 @@ const criarCliente = require('./database/cliente');
 const rotas = express.Router();
 const nomeCookie = 'viera_gerente';
 const cookieFluxo = 'viera_fluxo';
-const urlPublica = 'https://supermercado-vieira-docker.onrender.com/';
+const origemPublica = 'https://supermercado-vieira-docker.onrender.com';
 const origensDaLoja = new Set([
-  new URL(urlPublica).origin, 'https://sistema-vieira.vercel.app', 'https://supermercado-vierira.onrender.com'
+  origemPublica, 'https://sistema-vieira.vercel.app', 'https://supermercado-vierira.onrender.com'
 ]);
 const chaveVerificador = 'vieira-auth-code-verifier';
 
@@ -63,13 +63,45 @@ async function exigirGerente(req, res, next) {
   const token = bearer?.[1] || cookie?.slice(nomeCookie.length + 1);
   if (!token) return semSessao(res);
   res.locals.bancoGerente = await bancoAutorizado(token, res);
-  if (res.locals.bancoGerente) next();
+  if (res.locals.bancoGerente) {
+    res.locals.tokenGerente = token;
+    next();
+  }
 }
 
 rotas.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 rotas.get('/sessao', exigirGerente, (req, res) => res.sendStatus(204));
 rotas.post('/sair', (req, res) => res.clearCookie(cookieFluxo, opcoesCookie).clearCookie(nomeCookie, opcoesCookie).sendStatus(204));
 
+rotas.post('/definir-senha', exigirGerente, async (req, res) => {
+  const senha = req.body?.senha;
+  if (typeof senha !== 'string' || [...senha].length < 12 || Buffer.byteLength(senha) > 72)
+    return res.status(400).json({ erro: 'Use pelo menos 12 caracteres e até 72 bytes na senha.' });
+
+  // O endpoint de conta do Supabase altera somente o usuário do token apresentado.
+  let resposta;
+  try {
+    resposta = await fetch(new URL('/auth/v1/user', process.env.SUPABASE_URL), {
+      method: 'PUT', redirect: 'error', signal: AbortSignal.timeout(10000),
+      headers: {
+        apikey: process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: 'Bearer ' + res.locals.tokenGerente,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: senha })
+    });
+  } catch { return indisponivel(res); }
+  if (resposta.ok) return res.sendStatus(204);
+  if (resposta.status === 429) return res.status(429).json({ erro: 'Aguarde antes de tentar cadastrar a senha novamente.' });
+  if (resposta.status >= 500) return indisponivel(res);
+  const detalhe = await resposta.json().catch(() => ({}));
+  if (resposta.status === 401 || resposta.status === 403 || detalhe.error_code === 'reauthentication_needed')
+    return res.status(401).json({ erro: 'Entre novamente por e-mail para cadastrar sua senha.' });
+  if (detalhe.error_code === 'same_password') return res.status(400).json({ erro: 'Essa já é a senha da conta.' });
+  return res.status(400).json({ erro: 'O serviço de acesso recusou a senha. Escolha outra senha e tente novamente.' });
+});
+
+const credenciaisInvalidas = 'E-mail ou senha incorretos.';
 rotas.use((req, res, next) => {
   const permitido = emailNormalizado(process.env.VIERA_GERENTE_EMAIL);
   if (!permitido) return indisponivel(res);
@@ -77,17 +109,28 @@ rotas.use((req, res, next) => {
   const email = emailNormalizado(req.body?.email);
   if (!email || email !== permitido) {
     if (req.path === '/enviar') return res.sendStatus(204);
-    return res.status(401).json({ erro: 'Os dados de acesso são inválidos ou expiraram.' });
+    return res.status(401).json({ erro: req.path === '/senha' ? credenciaisInvalidas : 'Os dados de acesso são inválidos ou expiraram.' });
   }
   res.locals.email = email;
   next();
+});
+
+rotas.post('/senha', async (req, res) => {
+  const senha = req.body?.senha;
+  if (typeof senha !== 'string' || !senha.length || Buffer.byteLength(senha) > 4096)
+    return res.status(401).json({ erro: credenciaisInvalidas });
+  const cliente = criarCliente();
+  if (!cliente) return indisponivel(res);
+  const email = res.locals.email;
+  const { data, error } = await cliente.auth.signInWithPassword({ email, password: senha });
+  return concluirSessao(res, email, data, error, credenciaisInvalidas);
 });
 
 rotas.post('/enviar', async (req, res) => {
   const { cliente, verificador } = clienteDeFluxo(req);
   if (!cliente) return indisponivel(res);
   const origem = req.get('Origin');
-  const retorno = origensDaLoja.has(origem) ? origem + '/' : urlPublica;
+  const retorno = new URL('/acesso', origensDaLoja.has(origem) ? origem : origemPublica).href;
   const { error } = await cliente.auth.signInWithOtp({
     email: res.locals.email, options: { emailRedirectTo: retorno, shouldCreateUser: false }
   });
@@ -136,13 +179,13 @@ rotas.post('/retorno', async (req,res) => {
   return concluirSessao(res,res.locals.email,data,error);
 });
 
-async function concluirSessao(res,email,data,error) {
+async function concluirSessao(res,email,data,error, erroCredencial = 'O acesso expirou ou já foi usado. Solicite outro e-mail.') {
   if (error) {
     if (error.status === 429) return res.status(429).json({ erro: 'Muitas tentativas. Aguarde antes de tentar novamente.' });
     if (!error.status || error.status >= 500) return indisponivel(res);
-    return res.status(401).json({ erro: 'O acesso expirou ou já foi usado. Solicite outro e-mail.' });
+    return res.status(401).json({ erro: erroCredencial });
   }
-  if (!data.session?.access_token || !data.user?.email_confirmed_at || emailNormalizado(data.user.email) !== email) {
+  if (!data?.session?.access_token || !data.user?.email_confirmed_at || emailNormalizado(data.user.email) !== email) {
     return res.status(403).json({ erro: 'A confirmação precisa ser feita com o e-mail do gerente.' });
   }
   if (!await bancoAutorizado(data.session.access_token, res)) return;

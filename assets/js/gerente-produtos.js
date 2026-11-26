@@ -2,69 +2,16 @@ function confirmarGerente() {
   const dialogo = document.getElementById('acesso-gerente');
   if (dialogo.open) throw new Error('Já existe uma confirmação em andamento.');
   const form = document.getElementById('form-acesso-gerente');
-  const email = document.getElementById('email-gerente');
-  const etapa = document.getElementById('etapa-confirmacao');
-  const prova = document.getElementById('prova-gerente');
-  const aviso = document.getElementById('aviso-gerente');
-  const confirmar = document.getElementById('confirmar-gerente');
-  const reenviar = document.getElementById('reenviar-gerente');
-  const cancelar = document.getElementById('cancelar-gerente');
-  const requisicao = new AbortController();
-  form.reset();
-  email.readOnly = false;
-  prova.required = false;
-  etapa.hidden = true;
-  reenviar.hidden = true;
-  confirmar.disabled = false;
-  reenviar.disabled = false;
-  confirmar.textContent = 'Enviar acesso';
-  aviso.textContent = 'Use o e-mail cadastrado para alterar preços, estoque ou excluir um produto.';
+  const acesso = prepararFormularioAcesso(form, () => dialogo.close('confirmado'));
   dialogo.returnValue = '';
-
-  async function enviar(reenviando) {
-    if (confirmar.disabled) return;
-    confirmar.disabled = true;
-    reenviar.disabled = true;
-    try {
-      if (etapa.hidden || reenviando) {
-        await requisitarAcesso('enviar', { email: email.value }, requisicao.signal);
-        if (requisicao.signal.aborted) return;
-        email.readOnly = true;
-        etapa.hidden = false;
-        reenviar.hidden = false;
-        prova.required = true;
-        prova.value = '';
-        confirmar.textContent = 'Confirmar e continuar';
-        aviso.textContent = 'Se este e-mail estiver autorizado, o acesso chegará na caixa de entrada ou no spam.';
-        prova.focus();
-      } else {
-        await confirmarMensagem(email.value, prova.value.trim(), requisicao.signal);
-        if (!requisicao.signal.aborted) dialogo.close('confirmado');
-      }
-    } catch (erro) {
-      if (!requisicao.signal.aborted) aviso.textContent = erro.message;
-    } finally {
-      if (!requisicao.signal.aborted) {
-        confirmar.disabled = false;
-        reenviar.disabled = false;
-      }
-    }
-  }
-
   return new Promise(resolve => {
-    form.onsubmit = evento => { evento.preventDefault(); enviar(false); };
-    reenviar.onclick = () => enviar(true);
-    cancelar.onclick = () => dialogo.close('cancelado');
+    document.getElementById('cancelar-gerente').onclick = () => dialogo.close('cancelado');
     dialogo.addEventListener('close', () => {
-      requisicao.abort();
-      form.onsubmit = null;
-      reenviar.onclick = null;
-      cancelar.onclick = null;
-      prova.value = '';
+      acesso.cancelar();
       resolve(dialogo.returnValue === 'confirmado');
     }, { once: true });
     dialogo.showModal();
-    email.focus();
+    form.querySelector('[type=email]').focus();
   });
 }
 

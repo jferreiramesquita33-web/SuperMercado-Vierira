@@ -9,7 +9,7 @@
   grid-template-columns: 1.05fr 0.95fr;
   min-height: 100vh;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 /* Painel de marca (esquerda) */
@@ -362,4 +362,4 @@
 }
 
 #form-admin [hidden] { display: none; }
-#usar-mensagem, #reiniciar-acesso { width: 100%; margin-top: 10px; }
+#form-admin .btn-secondary { width: 100%; margin-top: 10px; }

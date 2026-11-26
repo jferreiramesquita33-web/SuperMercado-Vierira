@@ -33,10 +33,27 @@ function consulta(tabela) {
 }
 process.env.VIERA_GERENTE_EMAIL = 'gerente@example.test';
 process.env.SUPABASE_URL = 'https://viera.example';
+process.env.SUPABASE_KEY = 'chave-publicavel-de-teste';
+const fetchReal = global.fetch;
+global.fetch = async (url, opcoes) => {
+  if (String(url) !== 'https://viera.example/auth/v1/user') return fetchReal(url, opcoes);
+  assert.equal(opcoes.method, 'PUT');
+  assert.equal(opcoes.headers.apikey, process.env.SUPABASE_KEY);
+  const token = opcoes.headers.Authorization.replace(/^Bearer /, '');
+  if (!estado.sessoes.has(token)) return Response.json({}, {status:401});
+  estado.senha = JSON.parse(opcoes.body).password;
+  return Response.json({});
+};
+function sessaoDeTeste() {
+  const access_token = randomUUID();
+  estado.sessoes.add(access_token);
+  return {data:{user:{email:'gerente@example.test',email_confirmed_at:'2026-01-01'},session:{access_token,expires_in:3600}}};
+}
 function cliente(token, auth = {}) {
   if (!token) return { auth: {
     async signInWithOtp(opcoes) {
       estado.ultimoEnvio=opcoes;
+      if (estado.falhaEmail) return {error:{status:estado.falhaEmail}};
       auth.storage.setItem('vieira-auth-code-verifier', JSON.stringify('v'.repeat(64)));
       return {};
     },
@@ -48,9 +65,11 @@ function cliente(token, auth = {}) {
     async verifyOtp(prova) {
       estado.ultimaProva=prova;
       if (prova.token !== '123456' && prova.token_hash !== 'hash-de-teste') return { error:{status:403} };
-      const access_token = randomUUID();
-      estado.sessoes.add(access_token);
-      return {data:{user:{email:'gerente@example.test',email_confirmed_at:'2026-01-01'},session:{access_token,expires_in:3600}}};
+      return sessaoDeTeste();
+    },
+    async signInWithPassword({email,password}) {
+      if (email !== process.env.VIERA_GERENTE_EMAIL || !estado.senha || password !== estado.senha) return {error:{status:400}};
+      return sessaoDeTeste();
     }
   }};
   return {
