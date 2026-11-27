@@ -11,18 +11,20 @@ function confirmarMensagem(email, valor, signal) {
   return requisitarAcesso('confirmar',{email,comprovante:valor},signal);
 }
 
-async function requisitarAcesso(rota, dados, signal) {
+async function requisitarAcesso(rota, dados, signal, tokenAcesso) {
+  const headers = { 'Content-Type':'application/json', 'Accept':'application/json' };
+  if (tokenAcesso) headers.Authorization = 'Bearer ' + tokenAcesso;
   let resposta;
   try {
     resposta = await fetch('/api/gerente/' + rota, {
-      method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'}, cache:'no-store',
+      method:'POST', headers, cache:'no-store', redirect:'error',
       body:JSON.stringify(dados), signal
     });
   } catch (erro) {
     if (erro.name === 'AbortError') throw erro;
     throw new Error('O site não conseguiu se conectar. Confira a internet e tente novamente.');
   }
-  if (resposta.status === 204) return;
+  if (resposta.status === 204) return resposta.headers.get('X-Viera-Proximo-Passo');
   const json = resposta.headers.get('Content-Type')?.includes('application/json')
     ? await resposta.json().catch(() => null) : null;
   const mensagem = typeof json?.erro === 'string' ? json.erro : resposta.status === 429

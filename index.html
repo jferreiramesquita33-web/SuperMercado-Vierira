@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Supermercado Vieira — Acesso Gerencial</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -66,7 +67,7 @@
           <input id="email-gerente" type="email" autocomplete="username" autocapitalize="none" required>
         </div>
         <div class="form-group" id="etapa-prova" hidden>
-          <label for="prova-gerente">Código ou link de acesso</label>
+          <label for="prova-gerente">Link do e-mail ou código</label>
           <input id="prova-gerente" type="password" autocomplete="one-time-code" maxlength="4096">
         </div>
         <div class="form-group" hidden>
@@ -75,7 +76,8 @@
         </div>
         <button class="btn-login" type="submit" id="login-btn-admin">Enviar acesso por e-mail</button>
         <button class="btn btn-secondary" type="button" data-usar-senha>Usar senha</button>
-        <button class="btn btn-secondary" data-usar-mensagem id="usar-mensagem" type="button">Já recebi o e-mail</button>
+        <button class="btn btn-secondary" data-criar-senha type="button" hidden>Criar ou recuperar senha</button>
+        <button class="btn btn-secondary" data-usar-mensagem id="usar-mensagem" type="button">Colar link ou digitar código</button>
         <button class="btn btn-secondary" data-reiniciar id="reiniciar-acesso" type="button" hidden>Trocar e-mail ou reenviar</button>
       </form>
     </div>
@@ -83,38 +85,48 @@
     <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
   </div>
 
-  <script src="/assets/js/auth.js?v=13"></script>
-  <script src="/assets/js/form-acesso.js?v=1"></script>
+  <script src="/assets/js/auth.js?v=14"></script>
+  <script src="/assets/js/form-acesso.js?v=2"></script>
   <script src="/assets/js/app.js?v=12"></script>
   <script>
-    initTheme();
-    applySiteImage();
-
     const form = document.getElementById('form-admin');
     const ajuda = document.getElementById('acesso-ajuda');
-    const modoInicial = /^\/acesso\/?$/.test(location.pathname) ? 'prova' : 'envio';
-    const acesso = prepararFormularioAcesso(form, () => {
-      localStorage.setItem('sv_logged', 'true');
+    const destinoSenha = '/pages/dashboard.html#cadastrar-senha';
+    const modoInicial = new URLSearchParams(location.search).get('recuperar') === '1' ? 'recuperar' : 'envio';
+    const acesso = prepararFormularioAcesso(form, proximoPasso => {
+      try { localStorage.setItem('sv_logged', 'true'); } catch { /* A sessão está no cookie. */ }
+      if (proximoPasso === 'cadastrar-senha') { location.replace(destinoSenha); return; }
       if (window.SVLoginTransition) window.SVLoginTransition.start();
       else location.replace('/pages/dashboard.html');
     }, modoInicial);
 
     async function iniciarAcesso() {
       const parametros = new URLSearchParams(location.search);
+      const fragmento = new URLSearchParams(location.hash.slice(1));
       const codigo = parametros.get('code');
-      const falhou = parametros.has('error') || new URLSearchParams(location.hash.slice(1)).has('error');
-      if (codigo || falhou) {
-        history.replaceState(null,'',location.pathname);
-        if (falhou) ajuda.textContent = 'O link expirou ou já foi usado. Peça outro e-mail ou use sua senha do Viera.';
-        else await acesso.retorno(codigo);
+      const tokenAcesso = fragmento.get('access_token');
+      const falhou = [parametros, fragmento].some(p => p.has('error') || p.has('error_code'));
+      if (parametros.has('code') || fragmento.has('access_token') || fragmento.has('refresh_token') || falhou) {
+        history.replaceState(null, '', location.pathname);
+        if (falhou) {
+          ajuda.textContent = 'Este link expirou ou já foi usado. Peça um novo e-mail abaixo ou entre com sua senha.';
+        } else if (codigo) {
+          await acesso.retorno({ codigo });
+        } else if (tokenAcesso) {
+          await acesso.retorno({ recuperarSenha: fragmento.get('type') === 'recovery' }, tokenAcesso);
+        } else {
+          ajuda.textContent = 'O link está incompleto. Peça uma nova mensagem pelo Viera.';
+        }
         return;
       }
       try {
         const r = await fetch('/api/gerente/sessao',{ cache:'no-store' });
-        if (r.status === 204) location.replace('/pages/dashboard.html');
+        if (r.status === 204) location.replace(modoInicial === 'recuperar' ? destinoSenha : '/pages/dashboard.html');
       } catch { /* O formulário continua disponível para uma nova tentativa. */ }
     }
     iniciarAcesso();
+    initTheme();
+    applySiteImage();
   </script>
 </body>
 </html>

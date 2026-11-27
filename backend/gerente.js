@@ -14,7 +14,9 @@ const chaveVerificador = 'vieira-auth-code-verifier';
 function clienteDeFluxo(req) {
   const verificador = (req.headers.cookie || '').split(';').map(c => c.trim()).find(c => c.startsWith(cookieFluxo+'='))?.slice(cookieFluxo.length+1);
   const memoria = new Map();
-  if (/^[a-zA-Z0-9._~-]{43,128}$/.test(verificador || '')) memoria.set(chaveVerificador, JSON.stringify(verificador));
+  // O SDK marca os pedidos de recuperação com "/recovery", escapado no cookie.
+  if (/^[a-zA-Z0-9._~-]{43,128}(?:%2Frecovery)?$/i.test(verificador || ''))
+    memoria.set(chaveVerificador, JSON.stringify(decodeURIComponent(verificador)));
   const storage = {
     getItem: k => memoria.get(k) ?? null, setItem: (k,v) => memoria.set(k,v), removeItem: k => memoria.delete(k)
   };
@@ -131,9 +133,10 @@ rotas.post('/enviar', async (req, res) => {
   if (!cliente) return indisponivel(res);
   const origem = req.get('Origin');
   const retorno = new URL('/acesso', origensDaLoja.has(origem) ? origem : origemPublica).href;
-  const { error } = await cliente.auth.signInWithOtp({
-    email: res.locals.email, options: { emailRedirectTo: retorno, shouldCreateUser: false }
-  });
+  const email = res.locals.email;
+  const { error } = req.body?.recuperarSenha === true
+    ? await cliente.auth.resetPasswordForEmail(email, { redirectTo: retorno })
+    : await cliente.auth.signInWithOtp({ email, options: { emailRedirectTo: retorno, shouldCreateUser: false } });
   if (error) {
     if (error.status === 429) return res.status(429).json({ erro: 'Aguarde antes de pedir outro e-mail.' });
     return res.status(503).json({ erro: 'O serviço de e-mail não conseguiu enviar o acesso. Tente novamente em instantes.' });
@@ -153,7 +156,7 @@ function dadosVerificacao(email, comprovante) {
     const tipo = link.searchParams.get('type');
     const hash = link.searchParams.get('token');
     if (link.origin !== new URL(process.env.SUPABASE_URL).origin || link.pathname !== '/auth/v1/verify' ||
-        !['email', 'signup', 'magiclink'].includes(tipo) || !hash || hash.length > 256) return null;
+        !['email', 'signup', 'magiclink', 'recovery'].includes(tipo) || !hash || hash.length > 256) return null;
     return { token_hash: hash, type: tipo };
   } catch { return null; }
 }
@@ -165,10 +168,30 @@ rotas.post('/confirmar', async (req, res) => {
   const prova = dadosVerificacao(email, req.body?.comprovante);
   if (!prova) return res.status(400).json({ erro: 'Cole o link original do e-mail ou digite o código recebido.' });
   const { data, error } = await cliente.auth.verifyOtp(prova);
+  res.locals.cadastrarSenha = prova.type === 'recovery';
   return concluirSessao(res,email,data,error);
 });
 
 rotas.post('/retorno', async (req,res) => {
+  const autorizacao = req.get('Authorization');
+  if (autorizacao !== undefined) {
+    // Links emitidos fora do fluxo PKCE podem retornar uma sessão no fragmento.
+    // O servidor confirma a identidade no Supabase antes de criar o cookie da loja.
+    const token = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(autorizacao)?.[1];
+    if (!token || token.length > 3900 || req.body?.codigo)
+      return res.status(400).json({ erro: 'O link está incompleto. Solicite uma nova mensagem pelo Viera.' });
+    const cliente = criarCliente();
+    if (!cliente) return indisponivel(res);
+    const { data, error } = await cliente.auth.getUser(token);
+    if (error) return concluirSessao(res, res.locals.email, null, error);
+    // O token já foi validado pelo emissor. O cookie também termina no vencimento dele.
+    const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+    const restante = exp - Math.floor(Date.now() / 1000);
+    if (!Number.isSafeInteger(restante) || restante <= 0)
+      return res.status(401).json({ erro: 'O link expirou. Solicite uma nova mensagem pelo Viera.' });
+    res.locals.cadastrarSenha = req.body?.recuperarSenha === true;
+    return concluirSessao(res, res.locals.email, { user: data.user, session: { access_token: token, expires_in: restante } });
+  }
   const codigo = req.body?.codigo;
   if (typeof codigo !== 'string' || !/^[a-zA-Z0-9_-]{16,180}$/.test(codigo))
     return res.status(400).json({erro:'O link recebido está incompleto.'});
@@ -176,6 +199,7 @@ rotas.post('/retorno', async (req,res) => {
   if (!cliente) return indisponivel(res);
   if (!verificador()) return res.status(400).json({erro:'Abra o link no mesmo navegador e endereço em que pediu o acesso.'});
   const {data,error} = await cliente.auth.exchangeCodeForSession(codigo);
+  res.locals.cadastrarSenha = data?.redirectType === 'recovery';
   return concluirSessao(res,res.locals.email,data,error);
 });
 
@@ -189,6 +213,7 @@ async function concluirSessao(res,email,data,error, erroCredencial = 'O acesso e
     return res.status(403).json({ erro: 'A confirmação precisa ser feita com o e-mail do gerente.' });
   }
   if (!await bancoAutorizado(data.session.access_token, res)) return;
+  if (res.locals.cadastrarSenha) res.set('X-Viera-Proximo-Passo', 'cadastrar-senha');
   res.cookie(nomeCookie, data.session.access_token, {
     ...opcoesCookie, maxAge: Math.min(data.session.expires_in || 3600, 3600) * 1000
   }).clearCookie(cookieFluxo, opcoesCookie).sendStatus(204);

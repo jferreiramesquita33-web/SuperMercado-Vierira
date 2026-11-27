@@ -1,7 +1,7 @@
 // Simula apenas a fronteira com o Supabase. Rotas, cookies, validações e páginas são os reais.
 const { randomUUID } = require('node:crypto');
 const assert = require('node:assert/strict');
-const estado = { produtos: [], vieira_registros: [], importados: new Set(), sessoes: new Set(), erro: null };
+const estado = { produtos: [], vieira_registros: [], importados: new Set(), sessoes: new Set(), identidades: new Map(), erro: null };
 let proximoId = 1;
 function consulta(tabela) {
   const linhas = estado[tabela];
@@ -45,9 +45,13 @@ global.fetch = async (url, opcoes) => {
   return Response.json({});
 };
 function sessaoDeTeste() {
-  const access_token = randomUUID();
+  const exp = Math.floor(Date.now() / 1000) + 1800;
+  const carga = Buffer.from(JSON.stringify({ exp })).toString('base64url');
+  const access_token = ['teste', carga, randomUUID()].join('.');
+  const user = { email: 'gerente@example.test', email_confirmed_at: '2026-01-01' };
   estado.sessoes.add(access_token);
-  return {data:{user:{email:'gerente@example.test',email_confirmed_at:'2026-01-01'},session:{access_token,expires_in:3600}}};
+  estado.identidades.set(access_token, user);
+  return {data:{user, session:{access_token,expires_in:1800}}};
 }
 function cliente(token, auth = {}) {
   if (!token) return { auth: {
@@ -57,10 +61,24 @@ function cliente(token, auth = {}) {
       auth.storage.setItem('vieira-auth-code-verifier', JSON.stringify('v'.repeat(64)));
       return {};
     },
+    async resetPasswordForEmail(email, opcoes) {
+      estado.ultimaRecuperacao = { email, ...opcoes };
+      if (estado.falhaEmail) return {error:{status:estado.falhaEmail}};
+      auth.storage.setItem('vieira-auth-code-verifier', JSON.stringify('v'.repeat(64) + '/recovery'));
+      return {};
+    },
     async exchangeCodeForSession(codigo) {
-      if (codigo !== 'codigo-de-teste-valido' || auth.storage.getItem('vieira-auth-code-verifier') !== JSON.stringify('v'.repeat(64)))
+      const recuperar = codigo === 'codigo-de-recuperacao-valido';
+      const verificador = 'v'.repeat(64) + (recuperar ? '/recovery' : '');
+      if ((!recuperar && codigo !== 'codigo-de-teste-valido') || auth.storage.getItem('vieira-auth-code-verifier') !== JSON.stringify(verificador))
         return { error:{status:400} };
-      return this.verifyOtp({token:'123456'});
+      const resposta = sessaoDeTeste();
+      resposta.data.redirectType = recuperar ? 'recovery' : null;
+      return resposta;
+    },
+    async getUser(token) {
+      const user = estado.identidades.get(token);
+      return user ? { data: { user } } : { data: { user: null }, error: { status: 401 } };
     },
     async verifyOtp(prova) {
       estado.ultimaProva=prova;

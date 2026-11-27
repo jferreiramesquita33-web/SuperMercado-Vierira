@@ -129,6 +129,9 @@ try {
   assert.equal(await evaluate('window.__openingCount'), 1);
   async function enviarAcesso() {
     await evaluate("document.getElementById('email-gerente').value='gerente@example.test';document.getElementById('form-admin').requestSubmit()");
+    await until("document.getElementById('acesso-ajuda').textContent.includes('mensagem mais recente')");
+    assert.equal(await evaluate("document.getElementById('etapa-prova').hidden"), true);
+    await evaluate("document.querySelector('[data-usar-mensagem]').click()");
     await until("!document.getElementById('etapa-prova').hidden");
   }
   async function confirmar(codigo) {
@@ -254,7 +257,15 @@ try {
   assert.equal(await evaluate('window.__loginCovers.length'),0);
   assert.equal(await evaluate('document.body.inert'),false);
   const senhaTeste = randomUUID();
-  await evaluate("document.querySelector('button[onclick*=cadastro-senha]').click()");
+  const tokenDeTeste = [...estado.sessoes].at(-1);
+  await cdp('Network.clearBrowserCookies');
+  await cdp('Page.navigate', { url: origin + '/#' + new URLSearchParams({
+    access_token: tokenDeTeste, refresh_token:'renovacao-ficticia', type:'recovery'
+  }) });
+  await until("location.pathname.endsWith('/dashboard.html') && document.querySelector('#cadastro-senha')?.open");
+  assert.equal(await evaluate("location.hash"),'');
+  const armazenamento = await evaluate("JSON.stringify([localStorage,sessionStorage])");
+  assert.ok(!armazenamento.includes(tokenDeTeste) && !armazenamento.includes('renovacao-ficticia'));
   await evaluate("document.querySelector('#nova-senha').value=" + JSON.stringify(senhaTeste) +
     ";document.querySelector('#confirmar-senha').value='outra senha de teste';document.querySelector('#form-senha').requestSubmit()");
   await until("document.querySelector('#ajuda-senha').textContent.includes('diferentes')");
@@ -264,7 +275,10 @@ try {
   await evaluate('logout()');
   await until("location.pathname.endsWith('/index.html') && !!document.querySelector('#form-admin')?.onsubmit");
   await cdp('Page.navigate', {url:origin+'/acesso'});
-  await until("document.querySelector('#etapa-prova')?.hidden === false");
+  await until("!!document.querySelector('#form-admin')?.onsubmit && !document.querySelector('[data-usar-mensagem]').hidden");
+  assert.equal(await evaluate("document.querySelector('#etapa-prova').hidden"),true);
+  await evaluate("document.querySelector('[data-usar-mensagem]').click()");
+  assert.equal(await evaluate("document.querySelector('#etapa-prova').hidden"),false);
   assert.equal(await evaluate("document.querySelector('#email-gerente').readOnly"),false);
   await evaluate("document.querySelector('[data-reiniciar]').click()");
   estado.falhaEmail=503;
@@ -280,9 +294,26 @@ try {
   await evaluate("confirmarGerente().then(sim=>window.__reconfirmado=sim)");
   await evaluate("document.querySelector('[data-usar-senha]').click();document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#senha-gerente').value="+JSON.stringify(senhaTeste)+";document.querySelector('#form-acesso-gerente').requestSubmit()");
   await until("window.__reconfirmado === true && !document.querySelector('#acesso-gerente').open");
+  estado.falhaEmail = null;
+  await cdp('Network.clearBrowserCookies');
+  await cdp('Page.navigate',{url:origin+'/acesso?recuperar=1'});
+  await until("document.querySelector('#login-btn-admin')?.textContent === 'Enviar link para criar senha'");
+  await evaluate("document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#form-admin').requestSubmit()");
+  await until("document.querySelector('#acesso-ajuda').textContent.includes('tela Cadastrar senha')");
+  assert.equal(estado.ultimaRecuperacao.email,'gerente@example.test');
+  const emailRecuperacao = '<a href="' + origin + '/acesso?code=codigo-de-recuperacao-valido">Escolher senha</a>';
+  await cdp('Page.navigate',{url:'data:text/html,'+encodeURIComponent(emailRecuperacao)});
+  await until("!!document.querySelector('a')");
+  await evaluate("document.querySelector('a').click()");
+  await until("location.pathname.endsWith('/dashboard.html') && document.querySelector('#cadastro-senha')?.open");
+  await cdp('Network.clearBrowserCookies');
+  await cdp('Page.navigate',{url:origin+'/acesso#error=access_denied&error_code=otp_expired'});
+  await until("document.querySelector('#acesso-ajuda')?.textContent.includes('expirou')");
+  assert.equal(await evaluate("location.hash"),'');
+  assert.equal(await evaluate("document.querySelector('#etapa-prova').hidden"),true);
+  console.log('PASS: o clique nos dois formatos de link de recuperação abre Cadastrar senha. Link expirado permite pedir outra mensagem.');
   console.log('PASS: cadastro de senha, endereço público do código, falha no envio e autenticação por senha no login e na edição de produtos.');
   console.log('PASS: valid-login handoff covered on both documents, duplicate-click guard, reduced-motion login, single synchronized contraction, viewport coverage at desktop/ultrawide/mobile/landscape, common center/scale, 250ms finale, unchanged logout, native navigation, themes and reduced motion.');
-  await cdp('Browser.close');
 
 } finally {
   socket?.close();

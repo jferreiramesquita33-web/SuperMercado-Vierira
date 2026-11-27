@@ -74,6 +74,35 @@ function mountProductPage(loadProducts) {
     const retorno = await request('/api/gerente/retorno','POST',codigo,{Cookie:fluxo});
     assert.equal(retorno.status,204);
     assert.ok(retorno.headers.getSetCookie().some(c => c.startsWith('viera_gerente=') && c.includes('HttpOnly')));
+    const inicioRecuperacao = await request('/api/gerente/enviar','POST',{email,recuperarSenha:true});
+    assert.equal(inicioRecuperacao.status,204);
+    assert.equal(estado.ultimaRecuperacao.redirectTo,'https://supermercado-vieira-docker.onrender.com/acesso');
+    const cookieRecuperacao = inicioRecuperacao.headers.getSetCookie()[0].split(';')[0];
+    const codigoRecuperacao = { codigo:'codigo-de-recuperacao-valido' };
+    const recuperado = await request('/api/gerente/retorno','POST',codigoRecuperacao,{ Cookie:cookieRecuperacao });
+    assert.equal(recuperado.status,204);
+    assert.equal(recuperado.headers.get('X-Viera-Proximo-Passo'),'cadastrar-senha');
+    assert.equal(retorno.headers.get('X-Viera-Proximo-Passo'),null);
+    const token = [...estado.sessoes].at(-1);
+    const porFragmento = valor => request('/api/gerente/retorno','POST',{ recuperarSenha:true },{ Authorization:'Bearer '+valor });
+    const implicito = await porFragmento(token);
+    assert.equal(implicito.status,204);
+    assert.equal(implicito.headers.get('X-Viera-Proximo-Passo'),'cadastrar-senha');
+    const cookieImplicito = implicito.headers.getSetCookie()[0];
+    assert.match(cookieImplicito,/HttpOnly/);
+    assert.ok(Number(/Max-Age=(\d+)/.exec(cookieImplicito)[1]) <= 1800);
+    const recebido = await request('/api/gerente/sessao','GET',undefined,{ Cookie:cookieImplicito.split(';')[0] });
+    assert.equal(recebido.status,204);
+    assert.equal((await porFragmento('incompleto')).status,400);
+    assert.equal((await porFragmento('token.de.teste')).status,401);
+    const identidade = estado.identidades.get(token);
+    estado.identidades.set(token,{ ...identidade,email:'outra@example.test' });
+    const semPermissao = await porFragmento(token);
+    assert.equal(semPermissao.status,403);
+    assert.equal(semPermissao.headers.get('set-cookie'),null);
+    estado.identidades.set(token,identidade);
+    estado.sessoes.delete(token);
+    assert.equal((await porFragmento(token)).status,403);
     const acesso = vm.createContext({});
     vm.runInContext(fs.readFileSync(path.join(root,'assets/js/auth.js'),'utf8'),acesso);
     for (const [status,body] of [[404,'The page could not be found'],[200,'<html>'],[429,'Limite']]) {
@@ -81,6 +110,9 @@ function mountProductPage(loadProducts) {
       await assert.rejects(acesso.requisitarAcesso('enviar',{email}), err=>err.status===status && !err.message.includes('JSON'));
     }
     const verificar = comprovante => request('/api/gerente/confirmar','POST',{email,comprovante});
+    const recuperacaoColada = await verificar('https://viera.example/auth/v1/verify?type=recovery&token=hash-de-teste');
+    assert.equal(recuperacaoColada.status,204);
+    assert.equal(recuperacaoColada.headers.get('X-Viera-Proximo-Passo'),'cadastrar-senha');
     assert.equal((await verificar('https://outro.example/auth/v1/verify?type=signup&token=teste')).status,400);
     assert.equal((await verificar('000000')).status,401);
     const cookie = (await verificar('123456')).headers.get('set-cookie');

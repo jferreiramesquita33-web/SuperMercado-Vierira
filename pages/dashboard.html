@@ -34,7 +34,7 @@
     </div>
   </form>
 </dialog>
-<script src="../assets/js/auth.js?v=12"></script>
+<script src="../assets/js/auth.js?v=14"></script>
 <script src="../assets/js/storage.js?v=12"></script>
 <script src="../assets/js/app.js?v=12"></script>
 <script>
@@ -221,6 +221,10 @@ iniciarPagina(async () => {
   try { dashboardProdutos = await carregarProdutos(); estoqueErro = false; }
   catch { dashboardProdutos = []; estoqueErro = true; }
   buildDashboard();
+  if (location.hash === '#cadastrar-senha') {
+    history.replaceState(null, '', location.pathname);
+    dialogoSenha.showModal();
+  }
 });
 </script>
 </body>

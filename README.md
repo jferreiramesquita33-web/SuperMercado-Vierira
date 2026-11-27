@@ -6,7 +6,7 @@ Sistema de gestão da loja com interface em português, API Express e banco comp
 
 ## Entrar e salvar
 
-1. Informe o e-mail do gerente. Se já recebeu a mensagem, abra [a página de acesso](https://supermercado-vieira-docker.onrender.com/acesso) para digitar o código ou colar o endereço original do botão. Depois de entrar, selecione **Cadastrar senha** no Dashboard e escolha uma senha sua do Viera. Nos próximos acessos, **Usar senha** funciona mesmo quando o serviço de e-mail está indisponível. A sessão dura até uma hora.
+1. Na [página de acesso](https://supermercado-vieira-docker.onrender.com/acesso), peça a mensagem com o e-mail do gerente e abra o botão da mensagem mais recente no mesmo navegador. Para definir uma senha, selecione **Usar senha → Criar ou recuperar senha**. O botão desse e-mail abre **Cadastrar senha**. Também é possível cadastrar a senha pelo Dashboard. Nos próximos acessos, **Usar senha** funciona mesmo quando o serviço de e-mail está indisponível. A sessão dura até uma hora.
 2. Em **Produtos**, preencha o cadastro e clique em **Salvar produto**. A confirmação depende da gravação no banco. Em outro computador ou celular, entre com a conta autorizada e abra Produtos.
 3. Contas, funcionários, categorias e vales são gravados no mesmo banco ao confirmar os formulários. Se duas pessoas editarem o mesmo registro, a versão mais antiga precisa ser recarregada.
 4. Para trazer dados da versão anterior, entre pelo endereço e navegador em que foram cadastrados e clique em **Salvar tudo**. A importação preserva os IDs e os vínculos de vales e pode ser repetida. Produtos antigos que tinham apenas o estoque usam o preço inicial de R$ 0,00 até o gerente informar o valor. Tema, brilho e imagem de preferência são locais.

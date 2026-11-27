@@ -6,12 +6,15 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
   const enviar = form.querySelector('[type=submit]');
   const usarSenha = form.querySelector('[data-usar-senha]');
   const usarMensagem = form.querySelector('[data-usar-mensagem]');
+  const criarSenha = form.querySelector('[data-criar-senha]');
   const trocar = form.querySelector('[data-reiniciar]');
   const aviso = form.querySelector('[role=status]');
   const textos = {
     envio: 'Informe o e-mail do gerente para receber o acesso.',
-    prova: 'Digite o código recebido ou cole o endereço original do botão do e-mail.',
-    senha: 'Use a senha cadastrada no Viera para este e-mail.'
+    aguardando: 'Abra a mensagem mais recente neste navegador e clique no botão do e-mail. O próprio link confirma o acesso.',
+    prova: 'Antes de abrir o botão do e-mail, copie o endereço dele e cole aqui. Se a mensagem trouxer um código, você também pode digitá-lo.',
+    senha: 'Use a senha cadastrada no Viera para este e-mail.',
+    recuperar: 'Enviaremos um link ao e-mail do gerente para você escolher sua senha.'
   };
   let modo;
   let requisicao;
@@ -27,44 +30,51 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
     modo = novoModo;
     const porSenha = modo === 'senha';
     const porProva = modo === 'prova';
+    const aguardando = modo === 'aguardando';
     prova.value = senha.value = '';
     prova.closest('.form-group').hidden = prova.disabled = !porProva;
     senha.closest('.form-group').hidden = senha.disabled = !porSenha;
     prova.required = porProva;
     senha.required = porSenha;
     // Quem chegou ao endereço público ainda precisa informar o e-mail.
-    email.readOnly = porProva && Boolean(email.value) && email.validity.valid;
+    email.readOnly = (porProva || aguardando) && Boolean(email.value) && email.validity.valid;
     enviar.disabled = false;
+    enviar.hidden = aguardando;
     enviar.textContent = porSenha ? 'Entrar com senha' : porProva ? 'Confirmar e entrar' : 'Enviar acesso por e-mail';
-    usarSenha.textContent = porSenha ? 'Usar código por e-mail' : 'Usar senha';
-    usarMensagem.hidden = modo !== 'envio';
-    trocar.hidden = !porProva;
+    if (modo === 'recuperar') enviar.textContent = 'Enviar link para criar senha';
+    usarSenha.textContent = porSenha ? 'Entrar por e-mail' : 'Usar senha';
+    usarMensagem.hidden = modo !== 'envio' && !aguardando;
+    if (criarSenha) criarSenha.hidden = !porSenha;
+    trocar.hidden = !porProva && !aguardando;
     aviso.textContent = textos[modo];
-    if (focar) (email.value && email.validity.valid ? (porSenha ? senha : porProva ? prova : email) : email).focus();
+    if (focar && !aguardando) (email.value && email.validity.valid ? (porSenha ? senha : porProva ? prova : email) : email).focus();
   }
 
-  async function executar(acao, dados) {
+  async function executar(acao, dados, tokenAcesso) {
     if (requisicao || concluido) return;
     const requisicaoAtual = new AbortController();
     requisicao = requisicaoAtual;
     const signal = requisicaoAtual.signal;
     enviar.disabled = true;
     try {
-      if (acao === 'prova') await confirmarMensagem(dados.email, prova.value.trim(), signal);
-      else await requisitarAcesso(acao, dados, signal);
+      const proximoPasso = acao === 'prova'
+        ? await confirmarMensagem(dados.email, prova.value.trim(), signal)
+        : await requisitarAcesso(acao, dados, signal, tokenAcesso);
       if (signal.aborted) return;
       if (acao === 'enviar') {
-        mostrar('prova');
+        mostrar('aguardando');
+        if (dados.recuperarSenha) aviso.textContent = 'Abra a mensagem mais recente neste navegador. O botão do e-mail leva à tela Cadastrar senha.';
       } else {
         concluido = true;
         usarSenha.disabled = usarMensagem.disabled = trocar.disabled = true;
+        if (criarSenha) criarSenha.disabled = true;
         prova.value = senha.value = '';
-        aoEntrar();
+        aoEntrar(proximoPasso);
       }
     } catch (erro) {
       if (signal.aborted) return;
       if (acao === 'enviar' && erro.status === 429) {
-        mostrar('prova');
+        mostrar('aguardando');
         aviso.textContent = 'Aguarde antes de pedir outra mensagem. Você pode usar a mais recente ou entrar com sua senha.';
       } else {
         aviso.textContent = erro.message;
@@ -82,15 +92,28 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
   mostrar(modoInicial, false);
   usarSenha.onclick = () => mostrar(modo === 'senha' ? 'envio' : 'senha');
   usarMensagem.onclick = () => mostrar('prova');
+  if (criarSenha) criarSenha.onclick = () => mostrar('recuperar');
   trocar.onclick = () => mostrar('envio');
   form.onsubmit = evento => {
     evento.preventDefault();
+    if (modo === 'aguardando') return;
     const dados = { email: email.value.trim() };
     if (modo === 'senha') dados.senha = senha.value;
-    executar(modo === 'envio' ? 'enviar' : modo, dados);
+    if (modo === 'recuperar') dados.recuperarSenha = true;
+    executar(modo === 'envio' || modo === 'recuperar' ? 'enviar' : modo, dados);
   };
   return {
-    retorno: codigo => executar('retorno', { codigo }),
+    async retorno(dados, tokenAcesso) {
+      aviso.textContent = 'Confirmando o link do e-mail…';
+      for (const controle of form.elements) controle.disabled = true;
+      await executar('retorno', dados, tokenAcesso);
+      if (!concluido) {
+        const mensagem = aviso.textContent;
+        for (const controle of form.elements) controle.disabled = false;
+        mostrar(dados.recuperarSenha ? 'recuperar' : 'envio', false);
+        aviso.textContent = mensagem;
+      }
+    },
     cancelar() { cancelar(); form.reset(); }
   };
 }
