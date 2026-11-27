@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/style.css?v=8">
-  <link rel="stylesheet" href="/assets/css/login.css?v=9">
+  <link rel="stylesheet" href="/assets/css/login.css?v=10">
   <link rel="icon" type="image/png" href="/assets/img/logo-icon.png">
   <link rel="stylesheet" href="/assets/css/login-transition.css?v=1">
   <script src="/assets/js/login-transition.js?v=1"></script>
@@ -79,6 +79,11 @@
         <a class="btn btn-secondary" data-criar-senha href="/recuperar-senha">Criar ou recuperar senha</a>
         <button class="btn btn-secondary" data-usar-mensagem id="usar-mensagem" type="button">Colar link ou digitar código</button>
         <button class="btn btn-secondary" data-reiniciar id="reiniciar-acesso" type="button" hidden>Trocar e-mail ou reenviar</button>
+        <div class="acesso-visitante">
+          <span>ou</span>
+          <button class="btn btn-secondary" type="button" id="entrar-visitante" onclick="entrarComoVisitante()">Entrar como visitante</button>
+          <small>Conheça o sistema completo com dados de demonstração. Nada é salvo na loja.</small>
+        </div>
       </form>
       <form id="form-senha" method="post" hidden>
         <h2>Criar nova senha</h2>
@@ -103,9 +108,10 @@
     <p class="login-footer">© Supermercado Vieira · Sistema de Gestão</p>
   </div>
 
+  <script src="/assets/js/visitante.js?v=1"></script>
   <script src="/assets/js/auth.js?v=15"></script>
   <script src="/assets/js/form-acesso.js?v=4"></script>
-  <script src="/assets/js/app.js?v=12"></script>
+  <script src="/assets/js/app.js?v=13"></script>
   <script>
     const form = document.getElementById('form-admin');
     const ajuda = document.getElementById('acesso-ajuda');

@@ -88,9 +88,9 @@ function renderSidebar(active) {
   const themeIcon = savedTheme === 'light'
     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
     : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
-  const userName = 'Gerente Vieira';
+  const userName = window.SV_VISITANTE ? 'Visitante' : 'Gerente Vieira';
   const userInitial = userName.charAt(0).toUpperCase();
-  const userRole = 'Gerente';
+  const userRole = window.SV_VISITANTE ? 'Modo demonstração' : 'Gerente';
 
   let html = `<aside class="sidebar" id="main-sidebar">
     <div class="sidebar-brand">
@@ -269,9 +269,9 @@ function changeSiteImage(input) {
 // ======= TOPBAR =======
 function topbar(title) {
   const now = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const userName = 'Gerente Vieira';
+  const userName = window.SV_VISITANTE ? 'Visitante' : 'Gerente Vieira';
   const userInitial = userName.charAt(0).toUpperCase();
-  const userRole = 'Gerente';
+  const userRole = window.SV_VISITANTE ? 'Modo demonstração' : 'Gerente';
   const contas = SV.get('contasPagar');
   const vencidas = contas.filter(c => {
     if (c.status === 'paga' || c.status === 'paga após vencimento') return false;

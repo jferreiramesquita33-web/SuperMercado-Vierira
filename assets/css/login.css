@@ -364,3 +364,8 @@
 #form-admin [hidden] { display: none; }
 .login-card > [hidden] { display: none; }
 #form-admin .btn-secondary { width: 100%; margin-top: 10px; }
+
+/* Acesso de visitante */
+.acesso-visitante { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(148, 163, 184, .25); text-align: center; }
+.acesso-visitante > span { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .6; margin-bottom: 4px; }
+.acesso-visitante small { display: block; margin-top: 8px; font-size: 12px; opacity: .7; line-height: 1.4; }

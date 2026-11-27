@@ -11,6 +11,10 @@ Sistema de gestão da loja com interface em português, API Express e banco comp
 3. Contas, funcionários, categorias e vales são gravados no mesmo banco ao confirmar os formulários. Se duas pessoas editarem o mesmo registro, a versão mais antiga precisa ser recarregada.
 4. Para trazer dados da versão anterior, entre pelo endereço e navegador em que foram cadastrados e clique em **Salvar tudo**. A importação preserva os IDs e os vínculos de vales e pode ser repetida. Produtos antigos que tinham apenas o estoque usam o preço inicial de R$ 0,00 até o gerente informar o valor. Tema, brilho e imagem de preferência são locais.
 
+## Modo visitante
+
+Na página de acesso, **Entrar como visitante** abre o sistema completo com dados de demonstração. Todas as telas funcionam, inclusive cadastrar, editar e excluir, mas as alterações ficam só na aba aberta e somem ao clicar em **Sair** ou fechar a aba. O modo visitante não consulta nem altera o banco da loja: as chamadas à API são respondidas por `assets/js/visitante.js` no próprio navegador. Ao voltar para a página de acesso, o modo é encerrado.
+
 ## Dashboard
 
 Em **Pendências**, o gráfico compara os valores a pagar e a receber pelo mês de vencimento. O período inclui o mês atual e os cinco anteriores. O filtro abre em **Em aberto hoje** e também permite ver **Todas as contas**, inclusive as já liquidadas. **Ver valores por mês** apresenta os números exatos da comparação. O gráfico separado de fluxo considera as datas efetivas de pagamento e recebimento.
