@@ -3,6 +3,9 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
+const rotasPublicas = new Map(require('../vercel.json').rewrites
+  .filter(regra => regra.destination.startsWith('/'))
+  .map(regra => [regra.source, regra.destination]));
 for (const name of fs.readdirSync(path.join(root, 'assets/js'))) {
   if (name.endsWith('.js')) new vm.Script(fs.readFileSync(path.join(root, 'assets/js', name), 'utf8'), { filename: name });
 }
@@ -14,7 +17,8 @@ for (const name of ['index.html', ...fs.readdirSync(path.join(root, 'pages')).ma
   }
   for (const match of html.matchAll(/(?:src|href)="([^"?#]+)(?:[^\"]*)"/g)) {
     if (/^(https?:|data:|#)/.test(match[1])) continue;
-    const recurso = match[1].startsWith('/') ? path.join(root, match[1]) : path.resolve(root, path.dirname(name), match[1]);
+    const destino = rotasPublicas.get(match[1]) || match[1];
+    const recurso = destino.startsWith('/') ? path.join(root, destino) : path.resolve(root, path.dirname(name), destino);
     assert.ok(fs.existsSync(recurso), name + ': missing ' + match[1]);
   }
 }
@@ -54,6 +58,9 @@ function mountProductPage(loadProducts) {
   try {
     assert.equal((await request('/')).status, 200);
     assert.match(await (await request('/acesso')).text(), /data-usar-senha/);
+    const telaSenha = await request('/recuperar-senha');
+    assert.equal(telaSenha.headers.get('cache-control'),'no-store');
+    assert.match(await telaSenha.text(), /id="form-senha"/);
     for (const url of ['/backend/server.js','/backend/.env','/package.json','/api/inexistente']) assert.equal((await request(url)).status,404,url);
     const email = 'gerente@example.test';
     for (const path of ['/api/produtos','/api/registros','/api/gerente/sessao'])
@@ -76,8 +83,10 @@ function mountProductPage(loadProducts) {
     assert.ok(retorno.headers.getSetCookie().some(c => c.startsWith('viera_gerente=') && c.includes('HttpOnly')));
     const inicioRecuperacao = await request('/api/gerente/enviar','POST',{email,recuperarSenha:true});
     assert.equal(inicioRecuperacao.status,204);
-    assert.equal(estado.ultimaRecuperacao.redirectTo,'https://supermercado-vieira-docker.onrender.com/acesso');
-    const cookieRecuperacao = inicioRecuperacao.headers.getSetCookie()[0].split(';')[0];
+    assert.equal(estado.ultimaRecuperacao.redirectTo,'https://supermercado-vieira-docker.onrender.com/recuperar-senha');
+    assert.deepEqual(inicioRecuperacao.headers.getSetCookie(),[]);
+    // Mensagens da versão anterior ainda podem voltar com o fluxo PKCE.
+    const cookieRecuperacao = fluxo + '%2Frecovery';
     const codigoRecuperacao = { codigo:'codigo-de-recuperacao-valido' };
     const recuperado = await request('/api/gerente/retorno','POST',codigoRecuperacao,{ Cookie:cookieRecuperacao });
     assert.equal(recuperado.status,204);

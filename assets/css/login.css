@@ -362,4 +362,5 @@
 }
 
 #form-admin [hidden] { display: none; }
+.login-card > [hidden] { display: none; }
 #form-admin .btn-secondary { width: 100%; margin-top: 10px; }

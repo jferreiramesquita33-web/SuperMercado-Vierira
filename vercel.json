@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://supermercado-vieira-docker.onrender.com/api/:path*" },
     { "source": "/index.htm", "destination": "/index.html" },
-    { "source": "/acesso", "destination": "/index.html" }
+    { "source": "/acesso", "destination": "/index.html" },
+    { "source": "/recuperar-senha", "destination": "/index.html" }
   ]
 }

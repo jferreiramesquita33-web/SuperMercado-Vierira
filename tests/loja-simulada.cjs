@@ -64,7 +64,7 @@ function cliente(token, auth = {}) {
     async resetPasswordForEmail(email, opcoes) {
       estado.ultimaRecuperacao = { email, ...opcoes };
       if (estado.falhaEmail) return {error:{status:estado.falhaEmail}};
-      auth.storage.setItem('vieira-auth-code-verifier', JSON.stringify('v'.repeat(64) + '/recovery'));
+      assert.equal(auth.flowType, 'implicit');
       return {};
     },
     async exchangeCodeForSession(codigo) {

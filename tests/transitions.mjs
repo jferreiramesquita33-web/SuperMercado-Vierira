@@ -262,7 +262,7 @@ try {
   await cdp('Page.navigate', { url: origin + '/#' + new URLSearchParams({
     access_token: tokenDeTeste, refresh_token:'renovacao-ficticia', type:'recovery'
   }) });
-  await until("location.pathname.endsWith('/dashboard.html') && document.querySelector('#cadastro-senha')?.open");
+  await until("location.pathname === '/recuperar-senha' && document.querySelector('#form-senha')?.hidden === false");
   assert.equal(await evaluate("location.hash"),'');
   const armazenamento = await evaluate("JSON.stringify([localStorage,sessionStorage])");
   assert.ok(!armazenamento.includes(tokenDeTeste) && !armazenamento.includes('renovacao-ficticia'));
@@ -270,8 +270,10 @@ try {
     ";document.querySelector('#confirmar-senha').value='outra senha de teste';document.querySelector('#form-senha').requestSubmit()");
   await until("document.querySelector('#ajuda-senha').textContent.includes('diferentes')");
   await evaluate("document.querySelector('#confirmar-senha').value=document.querySelector('#nova-senha').value;document.querySelector('#form-senha').requestSubmit()");
-  await until("!document.querySelector('#cadastro-senha').open");
+  await until("document.querySelector('#senha-salva')?.hidden === false");
   assert.equal(estado.senha,senhaTeste);
+  await evaluate("document.querySelector('#senha-salva a').click()");
+  await until("location.pathname.endsWith('/dashboard.html') && !!document.querySelector('.kpi-card')");
   await evaluate('logout()');
   await until("location.pathname.endsWith('/index.html') && !!document.querySelector('#form-admin')?.onsubmit");
   await cdp('Page.navigate', {url:origin+'/acesso'});
@@ -299,19 +301,22 @@ try {
   await cdp('Page.navigate',{url:origin+'/acesso?recuperar=1'});
   await until("document.querySelector('#login-btn-admin')?.textContent === 'Enviar link para criar senha'");
   await evaluate("document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#form-admin').requestSubmit()");
-  await until("document.querySelector('#acesso-ajuda').textContent.includes('tela Cadastrar senha')");
+  await until("document.querySelector('#acesso-ajuda').textContent.includes('tela Criar nova senha')");
   assert.equal(estado.ultimaRecuperacao.email,'gerente@example.test');
-  const emailRecuperacao = '<a href="' + origin + '/acesso?code=codigo-de-recuperacao-valido">Escolher senha</a>';
+  assert.equal((await cdp('Network.getCookies',{urls:[origin+'/api/gerente/retorno']})).cookies.length,0);
+  const emailRecuperacao = '<a href="' + origin + '/recuperar-senha#access_token=' + tokenDeTeste + '&amp;type=recovery">Escolher senha</a>';
   await cdp('Page.navigate',{url:'data:text/html,'+encodeURIComponent(emailRecuperacao)});
   await until("!!document.querySelector('a')");
   await evaluate("document.querySelector('a').click()");
-  await until("location.pathname.endsWith('/dashboard.html') && document.querySelector('#cadastro-senha')?.open");
+  await until("location.pathname === '/recuperar-senha' && document.querySelector('#form-senha')?.hidden === false");
+  await cdp('Page.reload');
+  await until("location.pathname === '/recuperar-senha' && document.querySelector('#form-senha')?.hidden === false");
   await cdp('Network.clearBrowserCookies');
   await cdp('Page.navigate',{url:origin+'/acesso#error=access_denied&error_code=otp_expired'});
   await until("document.querySelector('#acesso-ajuda')?.textContent.includes('expirou')");
   assert.equal(await evaluate("location.hash"),'');
   assert.equal(await evaluate("document.querySelector('#etapa-prova').hidden"),true);
-  console.log('PASS: o clique nos dois formatos de link de recuperação abre Cadastrar senha. Link expirado permite pedir outra mensagem.');
+  console.log('PASS: a recuperação abre o formulário na própria página, inclusive em outro navegador sem cookies do pedido. Senha salva permite login e link vencido pode ser substituído.');
   console.log('PASS: cadastro de senha, endereço público do código, falha no envio e autenticação por senha no login e na edição de produtos.');
   console.log('PASS: valid-login handoff covered on both documents, duplicate-click guard, reduced-motion login, single synchronized contraction, viewport coverage at desktop/ultrawide/mobile/landscape, common center/scale, 250ms finale, unchanged logout, native navigation, themes and reduced motion.');
 

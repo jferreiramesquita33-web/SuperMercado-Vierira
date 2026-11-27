@@ -34,7 +34,7 @@
     </div>
   </form>
 </dialog>
-<script src="../assets/js/auth.js?v=14"></script>
+<script src="../assets/js/auth.js?v=15"></script>
 <script src="../assets/js/storage.js?v=12"></script>
 <script src="../assets/js/app.js?v=12"></script>
 <script>
@@ -197,25 +197,10 @@ const cancelarSenha = document.getElementById('cancelar-senha');
 cancelarSenha.onclick = () => dialogoSenha.close();
 dialogoSenha.oncancel = evento => { if (salvarSenha.disabled) evento.preventDefault(); };
 dialogoSenha.onclose = () => { formSenha.reset(); ajudaSenha.textContent = instrucaoSenha; };
-formSenha.onsubmit = async evento => {
-  evento.preventDefault();
-  if (salvarSenha.disabled) return;
-  const senha = document.getElementById('nova-senha').value;
-  const confirmar = document.getElementById('confirmar-senha');
-  if (senha !== confirmar.value) {
-    ajudaSenha.textContent = 'As senhas são diferentes. Digite a mesma senha nos dois campos.';
-    confirmar.focus();
-    return;
-  }
-  salvarSenha.disabled = cancelarSenha.disabled = true;
-  try {
-    await requisitarAcesso('definir-senha', { senha });
-    dialogoSenha.close();
-    showToast('Senha salva. No próximo acesso, escolha Usar senha.', 'success');
-  } catch (erro) {
-    ajudaSenha.textContent = erro.message;
-  } finally { salvarSenha.disabled = cancelarSenha.disabled = false; }
-};
+prepararCadastroSenha(formSenha, () => {
+  dialogoSenha.close();
+  showToast('Senha salva. No próximo acesso, escolha Usar senha.', 'success');
+});
 initBrightness();
 iniciarPagina(async () => {
   try { dashboardProdutos = await carregarProdutos(); estoqueErro = false; }

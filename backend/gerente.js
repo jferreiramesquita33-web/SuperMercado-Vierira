@@ -129,18 +129,24 @@ rotas.post('/senha', async (req, res) => {
 });
 
 rotas.post('/enviar', async (req, res) => {
-  const { cliente, verificador } = clienteDeFluxo(req);
+  const recuperar = req.body?.recuperarSenha === true;
+  // O gerente pode abrir a recuperação em outro navegador. O link de uso único
+  // do Supabase volta com uma sessão, validada em /retorno antes de criar o cookie.
+  const { cliente, verificador } = recuperar
+    ? { cliente: criarCliente(null, { flowType: 'implicit' }) }
+    : clienteDeFluxo(req);
   if (!cliente) return indisponivel(res);
   const origem = req.get('Origin');
   const retorno = new URL('/acesso', origensDaLoja.has(origem) ? origem : origemPublica).href;
   const email = res.locals.email;
-  const { error } = req.body?.recuperarSenha === true
-    ? await cliente.auth.resetPasswordForEmail(email, { redirectTo: retorno })
+  const { error } = recuperar
+    ? await cliente.auth.resetPasswordForEmail(email, { redirectTo: origemPublica + '/recuperar-senha' })
     : await cliente.auth.signInWithOtp({ email, options: { emailRedirectTo: retorno, shouldCreateUser: false } });
   if (error) {
     if (error.status === 429) return res.status(429).json({ erro: 'Aguarde antes de pedir outro e-mail.' });
     return res.status(503).json({ erro: 'O serviço de e-mail não conseguiu enviar o acesso. Tente novamente em instantes.' });
   }
+  if (recuperar) return res.sendStatus(204);
   const valor = verificador();
   if (!valor) return indisponivel(res);
   res.cookie(cookieFluxo, valor, { ...opcoesCookie, maxAge:3600000 }).sendStatus(204);

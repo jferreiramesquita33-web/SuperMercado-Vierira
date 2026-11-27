@@ -35,6 +35,34 @@ async function requisitarAcesso(rota, dados, signal, tokenAcesso) {
   throw erro;
 }
 
+function prepararCadastroSenha(form, aoSalvar) {
+  const [nova, confirmar] = form.querySelectorAll('[autocomplete=new-password]');
+  const aviso = form.querySelector('[role=status]');
+  const salvar = form.querySelector('[type=submit]');
+  const cancelar = form.querySelector('[type=button]');
+  form.onsubmit = async evento => {
+    evento.preventDefault();
+    if (salvar.disabled) return;
+    if (nova.value !== confirmar.value) {
+      aviso.textContent = 'As senhas são diferentes. Digite a mesma senha nos dois campos.';
+      confirmar.focus();
+      return;
+    }
+    salvar.disabled = true;
+    if (cancelar) cancelar.disabled = true;
+    try {
+      await requisitarAcesso('definir-senha', { senha: nova.value });
+      form.reset();
+      aoSalvar();
+    } catch (erro) {
+      aviso.textContent = erro.message;
+    } finally {
+      salvar.disabled = false;
+      if (cancelar) cancelar.disabled = false;
+    }
+  };
+}
+
 async function logout() {
   const terminar = async () => {
     try {

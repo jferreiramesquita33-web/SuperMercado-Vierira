@@ -43,8 +43,8 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
     enviar.textContent = porSenha ? 'Entrar com senha' : porProva ? 'Confirmar e entrar' : 'Enviar acesso por e-mail';
     if (modo === 'recuperar') enviar.textContent = 'Enviar link para criar senha';
     usarSenha.textContent = porSenha ? 'Entrar por e-mail' : 'Usar senha';
-    usarMensagem.hidden = modo !== 'envio' && !aguardando;
-    if (criarSenha) criarSenha.hidden = !porSenha;
+    usarMensagem.hidden = modo !== 'envio' && modo !== 'recuperar' && !aguardando;
+    if (criarSenha) criarSenha.hidden = modoInicial === 'recuperar' || !(porSenha || modo === 'envio');
     trocar.hidden = !porProva && !aguardando;
     aviso.textContent = textos[modo];
     if (focar && !aguardando) (email.value && email.validity.valid ? (porSenha ? senha : porProva ? prova : email) : email).focus();
@@ -63,11 +63,10 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
       if (signal.aborted) return;
       if (acao === 'enviar') {
         mostrar('aguardando');
-        if (dados.recuperarSenha) aviso.textContent = 'Abra a mensagem mais recente neste navegador. O botão do e-mail leva à tela Cadastrar senha.';
+        if (dados.recuperarSenha) aviso.textContent = 'Abra o botão da mensagem mais recente para ir direto à tela Criar nova senha.';
       } else {
         concluido = true;
         usarSenha.disabled = usarMensagem.disabled = trocar.disabled = true;
-        if (criarSenha) criarSenha.disabled = true;
         prova.value = senha.value = '';
         aoEntrar(proximoPasso);
       }
@@ -92,8 +91,7 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
   mostrar(modoInicial, false);
   usarSenha.onclick = () => mostrar(modo === 'senha' ? 'envio' : 'senha');
   usarMensagem.onclick = () => mostrar('prova');
-  if (criarSenha) criarSenha.onclick = () => mostrar('recuperar');
-  trocar.onclick = () => mostrar('envio');
+  trocar.onclick = () => mostrar(modoInicial === 'recuperar' ? 'recuperar' : 'envio');
   form.onsubmit = evento => {
     evento.preventDefault();
     if (modo === 'aguardando') return;
@@ -110,7 +108,7 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
       if (!concluido) {
         const mensagem = aviso.textContent;
         for (const controle of form.elements) controle.disabled = false;
-        mostrar(dados.recuperarSenha ? 'recuperar' : 'envio', false);
+        mostrar(dados.recuperarSenha || modoInicial === 'recuperar' ? 'recuperar' : 'envio', false);
         aviso.textContent = mensagem;
       }
     },
