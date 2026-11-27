@@ -104,7 +104,7 @@
   </div>
 
   <script src="/assets/js/auth.js?v=15"></script>
-  <script src="/assets/js/form-acesso.js?v=3"></script>
+  <script src="/assets/js/form-acesso.js?v=4"></script>
   <script src="/assets/js/app.js?v=12"></script>
   <script>
     const form = document.getElementById('form-admin');
@@ -114,7 +114,6 @@
     const paginaSenha = location.pathname.replace(/\/$/, '') === '/recuperar-senha' || new URLSearchParams(location.search).get('recuperar') === '1';
     if (paginaSenha) {
       document.title = 'Criar ou recuperar senha · Supermercado Viera';
-      form.querySelector('h2').textContent = 'Criar ou recuperar senha';
     }
     function abrirCadastro() {
       history.replaceState(null, '', '/recuperar-senha');
@@ -144,7 +143,9 @@
       if (parametros.has('code') || fragmento.has('access_token') || fragmento.has('refresh_token') || falhou) {
         history.replaceState(null, '', paginaSenha ? '/recuperar-senha' : location.pathname);
         if (falhou) {
-          ajuda.textContent = 'Este link expirou ou já foi usado. Peça um novo e-mail abaixo ou entre com sua senha.';
+          ajuda.textContent = paginaSenha
+            ? 'Este link expirou ou já foi usado. Digite seu e-mail abaixo para receber um novo link de recuperação.'
+            : 'Este link expirou ou já foi usado. Peça um novo e-mail abaixo ou entre com sua senha.';
         } else if (codigo) {
           await acesso.retorno({ codigo });
         } else if (tokenAcesso) {

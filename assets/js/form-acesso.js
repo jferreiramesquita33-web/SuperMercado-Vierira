@@ -1,5 +1,6 @@
 // A página de entrada e a confirmação de Produtos usam o mesmo fluxo.
 function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
+  const recuperacao = modoInicial === 'recuperar';
   const email = form.querySelector('[type=email]');
   const prova = form.querySelector('[autocomplete=one-time-code]');
   const senha = form.querySelector('[autocomplete=current-password]');
@@ -43,10 +44,12 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
     enviar.textContent = porSenha ? 'Entrar com senha' : porProva ? 'Confirmar e entrar' : 'Enviar acesso por e-mail';
     if (modo === 'recuperar') enviar.textContent = 'Enviar link para criar senha';
     usarSenha.textContent = porSenha ? 'Entrar por e-mail' : 'Usar senha';
-    usarMensagem.hidden = modo !== 'envio' && modo !== 'recuperar' && !aguardando;
-    if (criarSenha) criarSenha.hidden = modoInicial === 'recuperar' || !(porSenha || modo === 'envio');
+    usarSenha.hidden = recuperacao;
+    usarMensagem.hidden = recuperacao || (modo !== 'envio' && !aguardando);
+    if (criarSenha) criarSenha.hidden = recuperacao || !(porSenha || modo === 'envio');
     trocar.hidden = !porProva && !aguardando;
     aviso.textContent = textos[modo];
+    if (recuperacao) form.querySelector('h2').textContent = aguardando ? 'Confira seu e-mail' : 'Criar ou recuperar senha';
     if (focar && !aguardando) (email.value && email.validity.valid ? (porSenha ? senha : porProva ? prova : email) : email).focus();
   }
 
@@ -63,7 +66,7 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
       if (signal.aborted) return;
       if (acao === 'enviar') {
         mostrar('aguardando');
-        if (dados.recuperarSenha) aviso.textContent = 'Abra o botão da mensagem mais recente para ir direto à tela Criar nova senha.';
+        if (dados.recuperarSenha) aviso.textContent = 'Abra a mensagem mais recente com o assunto “Reset your password”. Clique em “Reset password” para abrir a tela Criar nova senha.';
       } else {
         concluido = true;
         usarSenha.disabled = usarMensagem.disabled = trocar.disabled = true;
@@ -74,9 +77,12 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
       if (signal.aborted) return;
       if (acao === 'enviar' && erro.status === 429) {
         mostrar('aguardando');
-        aviso.textContent = 'Aguarde antes de pedir outra mensagem. Você pode usar a mais recente ou entrar com sua senha.';
+        aviso.textContent = recuperacao
+          ? 'Aguarde antes de pedir outro link. No seu e-mail, procure a mensagem mais recente com o assunto “Reset your password”.'
+          : 'Aguarde antes de pedir outra mensagem. Você pode usar a mais recente ou entrar com sua senha.';
       } else {
         aviso.textContent = erro.message;
+        if (acao === 'senha' && erro.status === 401 && criarSenha) aviso.textContent += ' Para cadastrar ou trocar a senha, escolha Criar ou recuperar senha.';
       }
     } finally {
       if (requisicao === requisicaoAtual) {
@@ -91,7 +97,7 @@ function prepararFormularioAcesso(form, aoEntrar, modoInicial = 'envio') {
   mostrar(modoInicial, false);
   usarSenha.onclick = () => mostrar(modo === 'senha' ? 'envio' : 'senha');
   usarMensagem.onclick = () => mostrar('prova');
-  trocar.onclick = () => mostrar(modoInicial === 'recuperar' ? 'recuperar' : 'envio');
+  trocar.onclick = () => mostrar(modoInicial);
   form.onsubmit = evento => {
     evento.preventDefault();
     if (modo === 'aguardando') return;

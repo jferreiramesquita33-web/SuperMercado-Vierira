@@ -300,8 +300,13 @@ try {
   await cdp('Network.clearBrowserCookies');
   await cdp('Page.navigate',{url:origin+'/acesso?recuperar=1'});
   await until("document.querySelector('#login-btn-admin')?.textContent === 'Enviar link para criar senha'");
+  assert.equal(await evaluate("document.querySelector('#form-admin h2').textContent"),'Criar ou recuperar senha');
+  assert.equal(await evaluate("document.querySelector('[data-usar-senha]').getClientRects().length"),0);
   await evaluate("document.querySelector('#email-gerente').value='gerente@example.test';document.querySelector('#form-admin').requestSubmit()");
   await until("document.querySelector('#acesso-ajuda').textContent.includes('tela Criar nova senha')");
+  assert.equal(await evaluate("document.querySelector('#form-admin h2').textContent"),'Confira seu e-mail');
+  assert.equal(await evaluate("document.querySelector('[data-usar-senha]').getClientRects().length"),0);
+  assert.equal(await evaluate("document.querySelector('[data-usar-mensagem]').getClientRects().length"),0);
   assert.equal(estado.ultimaRecuperacao.email,'gerente@example.test');
   assert.equal((await cdp('Network.getCookies',{urls:[origin+'/api/gerente/retorno']})).cookies.length,0);
   const emailRecuperacao = '<a href="' + origin + '/recuperar-senha#access_token=' + tokenDeTeste + '&amp;type=recovery">Escolher senha</a>';
